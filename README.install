@@ -1,0 +1,24 @@
+Installations:
+
+python
+pysnmp
+apache (apache2)
+
+
+Modifications:
+
+
+/etc/apache2/conf-enabled/serve-cgi-bin.conf:
+	Modify Existing to be:
+        <IfDefine ENABLE_USR_LIB_CGI_BIN>
+                ScriptAlias /cgi-bin/ /opt/skynet/skynetCore/www/
+                <Directory "/opt/skynet/skynetCore/www/">
+                        AddHandler cgi-script .py
+                        AllowOverride None
+                        Options +ExecCGI -MultiViews +SymLinksIfOwnerMatch
+                        Require all granted
+                        Order allow,deny
+                        Allow from all
+                </Directory>
+        </IfDefine>
+
