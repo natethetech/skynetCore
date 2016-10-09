@@ -1,19 +1,18 @@
 #!/usr/bin/python
-
+import time
 print "SKYNET-MASTER v1.01"
 print "INITIALIZING\n\n"
+#Measure init time
+t1=time.clock()
 
 #currently implements snmpv1 for compatibility with older HWg devices
 
 from pysnmp.hlapi import *
-import time
 from ISStreamer.Streamer import Streamer
 import re
 
 import subprocess
 
-#Measure init time
-t1=time.clock()
 
 #Initialize InitialState Streamers
 print "Connecting SKYNET-PI to InitialState Logger"
