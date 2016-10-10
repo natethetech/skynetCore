@@ -3,7 +3,7 @@ Installations:
 python
 pysnmp
 apache (apache2)
-
+pigpio
 
 Modifications:
 
@@ -21,4 +21,15 @@ Modifications:
                         Allow from all
                 </Directory>
         </IfDefine>
+
+
+
+sudo cp gpio.startup.py /etc/init.d/
+sudo chmod + x /etc/init.d/gpio.startup.py
+sudo update-rc.d gpio.startup.py defaults
+
+add to crontab:
+* * * * * root /usr/bin/pigpiod &> /var/log/startuplog
+* * * * * pi /opt/skynet/skynetCore/poll-pi.py
+
 
