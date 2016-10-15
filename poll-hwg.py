@@ -16,7 +16,7 @@ import subprocess
 t1=time.clock()
 
 #Initialize InitialState Streamers
-print "Connecting SKYNET-TEMPS to InitialState Logger"
+print("Connecting SKYNET-TEMPS to InitialState Logger")
 streamer = Streamer(bucket_name="SKYNET-TEMPS",
 		bucket_key="8WC35WLXAAAY", 
 		access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q")
@@ -60,9 +60,11 @@ for host in range(len(tempHosts)):
 
 
     		if errorIndication:
-        		print(errorIndication)
+        		print("ERROR\n")
+			print(errorIndication)
         		break
     		elif errorStatus:
+			print("ERROR\n")
         		print('%s at %s' % (errorStatus.prettyPrint(),
                             errorIndex and varBinds[int(errorIndex) - 1][0] or '?'))
         		break
@@ -70,10 +72,11 @@ for host in range(len(tempHosts)):
 			#PRIMARY ACTION HERE
 			temperature = (float(varBinds[0][1])/10 * 1.8) + 32
 			#Formatted console Output of gathered value
-			print repr(host) + ': ' + tempHosts[host][2] + ': ' + "%.2f" % temperature + 'F'
+			print(repr(host) + ': ' + tempHosts[host][2] + ': ' + "%.2f" % temperature + 'F')
 			tempHosts[host][3] = temperature
 			#Send result to initialstate, heavily stripped and formatted for compatibility
 			streamer.log(""+str(tempHosts[host][2]).strip()+"", round(float("%.2f" % temperature),4))
+			print("   [SENT]")
 
 
 #Writing & Logging Block
