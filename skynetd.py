@@ -3,6 +3,7 @@
 #   PYTHONPATH=`pwd` python testdaemon.py start
 
 #standard python libs
+import sys
 import logging
 import time
 #Python SNMP High-Level API
@@ -65,8 +66,16 @@ pinList = [
 	5,     #Relay 0: SYSTEM LOCK/ENABLE
 	6,     #Relay 1: FAN/Blower Control
 	13,    #Relay 2: HEAT Control
-	19     #Relay 3: COOL Control
+	19,    #Relay 3: COOL Control
+	26,    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
     ]
+
+HVACpin_SYSTEM = 0
+HVACpin_FAN = 1
+HVACpin_HEAT = 2
+HVACpin_COOL = 3
+HVACpin_AUTO = 4
+
 #thisPi = pigpio.pi()
 #if not thisPi.connected:
 #	#handle this error somehow
@@ -79,16 +88,69 @@ RELAY_OFF = GPIO.HIGH
 
 GPIO.setwarnings(False)
 
-HVAC_status = [0,0,0,0]
+HVAC_status = [0,0,0,0,0]
 
 HEAT_times = [0,0]   #last off   #last on
 COOL_times = [0,0]
 
 #rudimentary config for initial logic design
-mode = 2 #0 off 1 fan 2 heat 3 cool
-setpoint = 73      #rudimentary set temperature for initial logic design
-hyst_temp = 1.0    #degrees over/under before trigger
+mode = 2           #0 off 1 fan 2 heat 3 cool
+setpoint = 90      #rudimentary set temperature for initial logic design
+hyst_temp = 4.0    #degrees over/under before trigger
 hyst_time = 600    #seconds until next restart
+
+
+def HVAC_service_audit(which):      
+	logger.debug("HVAC_service_audit(%s)" % which)
+
+	pinstat = GPIO.input(pinList[which])
+        if pinstat:
+        	pinstatus = 0
+        else:
+                pinstatus = 1
+        if (HVAC_status[which] != pinstatus) and (which != HVACpin_AUTO):
+                logger.info("*****Pin Change Detected on relay %s" % which)
+                logger.info("*****HVAC_status: %s" % HVAC_status[which])
+                logger.info("*****Pin Status: %s" % pinstatus)
+                HVAC_status[which] = pinstatus
+	elif (HVAC_status[which] != pinstatus) and (which == HVACpin_AUTO):
+		logger.info("**********AUTOMATIC MODE CHANGE DETECTED***************")
+		if pinstat:
+			#manual switch on
+			logger.info("MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL")
+			HVAC_goManual()
+		else:
+			logger.info("AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO")
+			HVAC_goAuto()
+	logger.debug("Audit Complete")
+
+def HVAC_goAuto():
+	#test conditions, check relays, then change relays (turn off a/c for heat, etc) in a safe way
+	logger.info("*****************************************************************")
+	logger.info("HVAC_goAuto()")
+	HVAC_logic(True)
+	HVAC_status[4] = 1	
+
+def HVAC_goManual():
+	#test conditions, check relays, then change relays...?
+	logger.info("*****************************************************************")
+	logger.info("HVAC_goManual()")
+	HVAC_status[4] = 0
+
+
+#########################################################
+#
+#  Check Array against Actual and Adjust Array to Match
+#
+#########################################################  
+
+def HVAC_audit():
+	logger.info("*****************************************************************")
+	logger.info("HVAC_audit()")
+	relayCounter = 0
+	for x in pinList:
+		HVAC_service_audit(relayCounter)
+		relayCounter += 1
 
 #########################################################
 #
@@ -98,13 +160,21 @@ hyst_time = 600    #seconds until next restart
 #########################################################  
 
 def upload_status():
+	logger.info("*****************************************************************")
+	logger.info("upload_status()")
+	outStatus = ["OFF","ON"]
 	#streamer.log("HVAC_test","ON")
 	streamer.log("HVAC_SYSTEM",HVAC_status[0])
 	streamer.log("HVAC_FAN", HVAC_status[1])
 	streamer.log("HVAC_HEAT", HVAC_status[2])
 	streamer.log("HVAC_COOL", HVAC_status[3])
-	logger.debug(HVAC_status)
-	streamer.log("HVAC_test", "OFF")
+	streamer.log("HVAC_AUTO", HVAC_status[4])
+	logger.debug("***HVAC_status")
+	logger.info("***HVAC_SYSTEM is %s" % outStatus[HVAC_status[0]]) 
+	logger.info("***HVAC_FAN is %s" % outStatus[HVAC_status[1]]) 
+	logger.info("***HVAC_HEAT is %s" % outStatus[HVAC_status[2]]) 
+	logger.info("***HVAC_COOL is %s" % outStatus[HVAC_status[3]]) 
+	logger.info("***HVAC_AUTO is %s" % outStatus[HVAC_status[4]]) 
 
 #########################################################
 #
@@ -114,8 +184,9 @@ def upload_status():
 #########################################################  
 
 def HVAC_init():
-	logger.debug("HVAC_init() called")
 
+	logger.info("*****************************************************************")
+	logger.info("HVAC_init()")
 	#if not thisPi.connected:
 	#	logger.error("BAD CONNECT STATE")
 	#else:
@@ -132,6 +203,37 @@ def HVAC_init():
 		logger.debug("Relay %s Off" % relayCounter)
 		relayCounter = relayCounter + 1
 
+
+############################################################
+#
+#  HVAC_logic
+#
+############################################################
+
+def HVAC_logic(override):
+	logger.info("*****************************************************************")
+	logger.info("HVAC_logic()")
+	#HVAC_audit()
+	if HVAC_isAuto() or override:
+		logger.info("Automatic Mode")
+	        if mode == 2:                           	#HEAT
+			HVAC_service_audit(2)   		#CHECK THE HEAT RELAY, UPDATE STATUS
+        		ambient = tempTemps[0]			#CURRENTLY single-sensor set from the 1wire ambient sensor @ thermostat
+        	        logger.debug("Ambient: %s" % ambient)
+                	logger.debug("Set: %s" % setpoint)
+                	if ambient > setpoint + hyst_temp:
+                		logger.info("AUTO TURNING HEAT OFF")
+				HVAC_HEAT_off()
+                	elif ambient < setpoint - hyst_temp:
+                        	logger.info("AUTO TURNING HEAT ON")
+				HVAC_HEAT_on()
+                	else:
+                        	logger.debug("COMFORT RANGE")
+			HVAC_COOL_off()				#Because heat is on, turn off cool
+	else:
+		logger.info("Manual Mode, Doing Nothing Automatically")
+
+
 ############################################################
 #
 #  HVAC_SYSTEM_[off|on]
@@ -140,6 +242,8 @@ def HVAC_init():
 ############################################################
 
 def HVAC_SYSTEM_off():
+	logger.info("*****************************************************************")
+	logger.info("HVAC_SYSTEM_off()")
 	#turn off relay 0
 	logger.debug("HVAC_SYSTEM_off()")
 	GPIO.output(pinList[0],RELAY_OFF)
@@ -147,6 +251,8 @@ def HVAC_SYSTEM_off():
 	
 def HVAC_SYSTEM_on():
 	#turn on relay 0
+        logger.info("*****************************************************************")
+        logger.info("HVAC_SYSTEM_on()")
 	logger.debug("HVAC_SYSTEM_on()")
 	GPIO.output(pinList[0],RELAY_ON)
 	HVAC_status[0] = 1
@@ -210,6 +316,34 @@ def HVAC_COOL_off():
 
 #########################################################
 #
+#  HVAC_AUTO_[off|on]
+#
+#########################################################  
+
+def HVAC_AUTO_on():
+        #turn on relay 4
+        logger.debug("HVAC_AUTO_on()")
+        GPIO.output(pinList[4],RELAY_ON)
+        HVAC_status[4] = 1
+
+def HVAC_AUTO_off():
+        #turn off relay 4
+        logger.debug("HVAC_AUTO_off()")
+        GPIO.output(pinList[4],RELAY_OFF)
+        HVAC_status[4] = 0
+
+def HVAC_isAuto():
+	#HVAC_service_audit(4)      #update manual/auto service
+	if HVAC_status[4] == 0:
+		return False
+	elif HVAC_status[4] == 1:
+		return True
+	else:
+		logger.error("SERVICE AUDIT - AUTO - FAILED")
+		return False
+
+#########################################################
+#
 #  read_temp_raw(which)
 #  read_temp(which)
 #
@@ -221,9 +355,9 @@ def read_temp_raw(which):
 	logger.debug("READ_TEMP_RAW: %s" % which)
         logger.debug(device_file[which])
 	f = open(device_file[which], 'r')
-	logger.debug("file opened")
+	#logger.debug("file opened")
         lines = f.readlines()
-	logger.debug("lines read")
+	#logger.debug("lines read")
         f.close()
 	logger.debug(lines)
         return lines
@@ -252,7 +386,8 @@ def read_temp(which):
 #########################################################  
 
 def poll_1wire_temps():
-	logger.info("Polling 1wire bus")
+        logger.info("*****************************************************************")
+        logger.info("poll_1wire_temps()")
 	#Probe 1Wire Serial
 	os.system('modprobe w1-gpio')
 	os.system('modprobe w1-therm')
@@ -265,7 +400,7 @@ def poll_1wire_temps():
 	if len(device_folder) != 2:
 		logger.error("1WIRE ERROR: MISSING SENSORS! LOOPING W/O DOING ANYTHING HERE!")
 	else:
-		logger.info("Located both sensors OK")
+		logger.debug("Located both sensors OK")
 		device_file[0] = device_folder[0] + '/w1_slave'
 		device_file[1] = device_folder[1] + '/w1_slave'
 		#read one set of records ahead to smooth out the measurements (prevent 185F bug)
@@ -299,7 +434,8 @@ def poll_1wire_temps():
 #########################################################  
 
 def snmp_poller():
-        logger.info("SNMP Temperature Sensor Poller")
+        logger.info("*****************************************************************")
+        logger.info("snmp_poller()")
         for host in range(len(tempHosts)):
                 for (errorIndication,errorStatus,errorIndex,varBinds) in getCmd(SnmpEngine(),
                           CommunityData(community, mpModel=0),              #mpModel=0 enables SNMPv1 (-v1)
@@ -309,7 +445,7 @@ def snmp_poller():
 
                     if errorIndication:
                         logger.error("SNMP ERROR on host %s" % tempHosts[host][2])
-                        logger.error(errorIndication)
+                        #logger.error(errorIndication)
                         break
 
                     elif errorStatus:
@@ -337,7 +473,8 @@ def write_prtg_snmp():
 	#t2=time.clock()
 	#print "Run Time: " + "%.2f" % (t2-t1) + ' seconds'
 	#write room sensor data to html
-	logger.info("Writing Room Sensors HTML for PRTG")
+        logger.info("*****************************************************************")
+        logger.info("write_prtg_snmp()")
 	with open("/var/www/html/temps.html", "w") as text_file:
   		for host in range(len(tempHosts)):
     			text_file.write("[{0}]".format(tempHosts[host][3]))
@@ -350,6 +487,8 @@ def write_prtg_snmp():
 #########################################################  
 
 def uptime_poller():
+        logger.info("*****************************************************************")
+        logger.info("uptime_poller()")
 	#get pi uptime, print it to console, send it to InitialState
 	output = subprocess.check_output(['cat','/proc/uptime'])
 	first = output.split(' ')
@@ -395,67 +534,95 @@ class App():
     
     def __init__(self):
         self.stdin_path = '/dev/null'
-        self.stdout_path = '/dev/tty'
-        self.stderr_path = '/dev/tty'
-        self.pidfile_path =  '/var/run/skynet/skynetd.pid'
-        self.pidfile_timeout = 5
+        self.stdout_path = '/var/log/skynet/stdout'
+        self.stderr_path = '/var/log/skynet/stderr'
+        self.pidfile_path =  '/var/run/skynetd.pid'
+        self.pidfile_timeout = 3
             
 #########################################################
 #
 #  CORE
+#  __init__(self) above runs first on instantiation
+#  run(self) runs on run
 #
 #########################################################  
 
     def run(self):
-	logger.info("Initializing HVAC_init()")
+	print "running"
+        logger.info("*****************************************************************")
+        logger.info("*****************************************************************")
+        logger.info("*****************************************************************")
+        logger.info("*****************************************************************")
+	logger.info("STARTUP INIT")
+	logger.debug("Initializing HVAC_init()")
 	HVAC_init()
-	logger.info("Cycling Relays")
-	
+        logger.info("*****************************************************************")
+        logger.info("INIT: CYCLING RELAYS")
+	#system first
 	HVAC_SYSTEM_on()
 	time.sleep(1)
-	HVAC_SYSTEM_off()
-	time.sleep(1)
+	HVAC_SYSTEM_off()      #Leave system relay off so nothing else can trigger
+
+	#turn all the relays on
 	HVAC_FAN_on()
 	HVAC_HEAT_on()
 	HVAC_COOL_on()
+	HVAC_AUTO_on()
+
 	time.sleep(1)
+
+	#turn all the relays off
 	HVAC_FAN_off()
 	HVAC_HEAT_off()
 	HVAC_COOL_off()
+	HVAC_AUTO_off()
 
 	logger.info("Relay Tests OK, System OFF after init")
+        logger.info("*****************************************************************")
+        logger.info("INIT: STARTING MAIN LOOP")
 
-	logger.info("ENTERING MAIN LOOP")
 
 #########################################################
 #
-#  CORE LOOPER
+#  CORE LOOP (body of run goes here)
 #
 #########################################################  
 
 	while True:
-		#Main code goes here ...
-            	#Note that logger level needs to be set to logging.DEBUG before this shows up in the logs
-           	#logger.debug("Debug message")
-            	logger.info("Main Routine")
-		snmp_poller()
-		write_prtg_snmp()
-		uptime_poller()
-		pi_hardware_poller()        
-		poll_1wire_temps()
-		if mode == 2:            		#HEAT
-			ambient = tempTemps[0]
-			logger.debug("Ambient: %s" % ambient)
-			logger.debug("Set: %s" % setpoint)
+            logger.debug("Main Routine")
 		
-			if ambient > setpoint + hyst_temp:
-				HVAC_HEAT_off()
-			elif ambient < setpoint - hyst_temp:
-				HVAC_HEAT_on()
-			else:
-			    logger.debug("COMFORT RANGE")
-    		time.sleep(10)
+
+	    try:
+		#POLLING BLOCK
+		snmp_poller()           #Poll HWg Devices via SNMP
+		write_prtg_snmp()       #Write SNMP poll data for PRTG
+		uptime_poller()		#Poll this pi's uptime
+		pi_hardware_poller()    #Poll this pi's CPU/GPU
+		poll_1wire_temps()	#Poll this unit's 1-wire sensors		
+
+		HVAC_audit()
+		HVAC_logic(False)
+	    	
+    		logger.info("*****************************************************************")
+		logger.info("SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP")
+		logger.info("*****************************************************************")
+		time.sleep(10)
+		logger.info("WAKING UP...")
 		upload_status()
+		
+		HVAC_audit()
+		HVAC_logic(False)
+
+	    except (SystemExit,KeyboardInterrupt):
+            	# Normal exit getting a signal from the parent process
+            	pass
+            except:
+            	# Something unexpected happened? 
+            	logging.exception("Exception")
+            finally:
+            	logging.info("Finishing")
+
+
 
 #########################################################
 #
@@ -464,6 +631,8 @@ class App():
 #
 #########################################################  
 
+
+print "got here"
 app = App()
 logger = logging.getLogger("DaemonLog")
 logger.setLevel(logging.WARN)
@@ -472,11 +641,13 @@ handler = logging.FileHandler("/var/log/skynet/skynetd.log")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+#try:
+#	daemon_runner.do_action()
+#except:
+#	print "CAUGHT SIGNAL"
+print "and here"
 daemon_runner = runner.DaemonRunner(app)
 #This ensures that the logger file handle does not get closed during daemonization
 daemon_runner.daemon_context.files_preserve=[handler.stream]
+daemon_runner.do_action()
 
-try:
-	daemon_runner.do_action()
-except:
-	print "CAUGHT SIGNAL"

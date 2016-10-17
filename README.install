@@ -23,6 +23,8 @@ Modifications:
         </IfDefine>
 
 
+then run a2enmod and add cgid
+then sudo service apache2 stop, start (NOT RELOAD)
 
 sudo cp gpio.startup.py /etc/init.d/
 sudo chmod + x /etc/init.d/gpio.startup.py
