@@ -17,6 +17,8 @@ import glob
 #import pigpio
 import RPi.GPIO as GPIO
 
+startTime = time.clock()
+
 GPIO.setmode(GPIO.BCM)    #set pin numbering to broadcom interface number
 
 #third party libs
@@ -496,6 +498,11 @@ def uptime_poller():
 	hours = uptimeseconds / 3600
 	logger.info("Master Pi Up " + "%.2f" % (hours)  + " hours")
 	pistreamer.log("UPTIME",str("%.2f" % (hours)))
+	currentTime = time.clock()
+	processLifetime = currentTime - startTime
+	logger.info("Skynet Daemon Process Lifespan (sec): %s" % processLifetime)
+	pistreamer.log("DaemonLifespan", str(processLifetime))
+
 
 #########################################################
 #
