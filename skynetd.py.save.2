@@ -6,7 +6,6 @@
 import sys
 import logging
 import time
-from datetime import datetime
 #Python SNMP High-Level API
 from pysnmp.hlapi import *
 #InitialState Streamer
@@ -19,10 +18,6 @@ import glob
 import RPi.GPIO as GPIO
 import thread
 
-global cycleCount
-cycleCount = 0
-global cycles
-cycles = 3
 startTime = time.time()
 
 GPIO.setmode(GPIO.BCM)    #set pin numbering to broadcom interface number
@@ -31,7 +26,6 @@ GPIO.setmode(GPIO.BCM)    #set pin numbering to broadcom interface number
 from daemon import runner
 
 streamer = Streamer(bucket_name="SKYNET-TEMPS",bucket_key="8WC35WLXAAAY",access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q")
-phonestreamer = Streamer(bucket_name="SKYNET-MOBILE",bucket_key="3T5JKNUXJUB9",access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q")
 pistreamer = Streamer(bucket_name="SKYNET-PI",bucket_key="J53VN6NNCYEJ",access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q")
 
 #########################################################
@@ -49,15 +43,15 @@ tempTemps = [0,0,0]
 
 #List hosts to poll for Celsius temperatures
 tempHosts = [
-                ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.3','         Outdoor',-999.9,"__OUTS1__"],
-                ['192.168.1.228','.1.3.6.1.4.1.21796.3.3.3.1.6.1','  Master Bedroom',-999.9,"__BEDRM__"],
-                ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.1','   Upstairs Hall',-999.9,"__HALL2__"],
+                ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.3','         Outdoor',-999.9,"_OUTSIDE_"],
+                ['192.168.1.228','.1.3.6.1.4.1.21796.3.3.3.1.6.1','  Master Bedroom',-999.9,"MASTERBED"],
+                ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.1','   Upstairs Hall',-999.9,"_UP_HALL_"],
                 ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.2','           Craft',-999.9,"__CRAFT__"],
-                ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.1','       Stairwell',-999.9,"__STAIR__"],
-                ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.1','     Living Room',-999.9,"__LVGRM__"],
-                ['192.168.1.223','.1.3.6.1.4.1.21796.3.3.3.1.6.1','    UpstairsBath',-999.9,"__BATH2__"],
-                ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.2','        Basement',-999.9,"__BSMNT__"],
-                ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','   Fish Tank 15g',-999.9,"__TNK15__"]
+                ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.1','       Stairwell',-999.9,"__STAIRS_"],
+                ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.1','     Living Room',-999.9,"_LIVINGRM"],
+                ['192.168.1.223','.1.3.6.1.4.1.21796.3.3.3.1.6.1','    UpstairsBath',-999.9,"BATH2"],
+                ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.2','        Basement',-999.9,"BASEMENT"],
+                ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','   Fish Tank 15g',-999.9,"FISH15"]
        ]
 
 
@@ -100,26 +94,14 @@ GPIO.setwarnings(False)
 
 HVAC_status = [0,0,0,0,0]
 
-HEAT_times = []   #last off   #last on
-COOL_times = []
+HEAT_times = [0,0]   #last off   #last on
+COOL_times = [0,0]
 
 #rudimentary config for initial logic design
 mode = 2           #0 off 1 fan 2 heat 3 cool
 setpoint = 72      #rudimentary set temperature for initial logic design
 hyst_temp = 4.0    #degrees over/under before trigger
 hyst_time = 600    #seconds until next restart
-HVAC_which = "BEDRM"
-
-def main_streamer(text,value):
-	streamer.log(text,value)
-
-def pi_streamer(text,value):
-	pistreamer.log(text,value)
-
-def double_streamer(text,value):
-	streamer.log(text,value)
-	phonestreamer.log(text,value)
-	pi_streamer(text,value)
 
 def HVAC_service_audit(which):      
 	logger.debug("HVAC_service_audit(%s)" % which)
@@ -138,26 +120,24 @@ def HVAC_service_audit(which):
 		logger.info("**********AUTOMATIC MODE CHANGE DETECTED***************")
 		if pinstat:
 			#manual switch on
-			logger.warn("MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL")
+			logger.info("MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL")
 			HVAC_goManual()
 		else:
-			logger.warn("AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO")
+			logger.info("AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO")
 			HVAC_goAuto()
 	logger.debug("Audit Complete")
-        upload_status()
 
 def HVAC_goAuto():
 	#test conditions, check relays, then change relays (turn off a/c for heat, etc) in a safe way
 	logger.info("HVAC_goAuto()")
 	HVAC_logic(True)
 	HVAC_status[4] = 1	
-	upload_status()
 
 def HVAC_goManual():
 	#test conditions, check relays, then change relays...?
 	logger.info("HVAC_goManual()")
 	HVAC_status[4] = 0
-        upload_status()
+
 
 #########################################################
 #
@@ -180,31 +160,14 @@ def HVAC_audit():
 #########################################################  
 
 def upload_status():
-        logger.debug("upload_status()")
+	logger.info("upload_status()")
 	outStatus = ["OFF","ON"]
-	ups = [0,0,0,0,0]
-	statusCounter = 0
-	global HVAC_status
-	for x in range(len(HVAC_status)):
-		ups[statusCounter] = float(HVAC_status[statusCounter]) + statusCounter + (float(statusCounter) / 10)
-		statusCounter += 1
-	double_streamer("HVAC_SYSTEM",HVAC_status[0])
-	double_streamer("HVAC_FAN", HVAC_status[1])
-	double_streamer("HVAC_HEAT", HVAC_status[2])
-	double_streamer("HVAC_COOL", HVAC_status[3])
-	double_streamer("HVAC_AUTO", HVAC_status[4])
-
-        double_streamer("HVAC_SYSTEM_ADD",ups[0])
-        double_streamer("HVAC_FAN_ADD", ups[1])
-        double_streamer("HVAC_HEAT_ADD", ups[2])
-        double_streamer("HVAC_COOL_ADD", ups[3])
-        double_streamer("HVAC_AUTO_ADD", ups[4])
-	HVAC_status_sum = 0
-	statusCounter = 0
-	for x in range(len(HVAC_status)):
-		HVAC_status_sum += ups[statusCounter]
-		statusCounter += 1
-	double_streamer("HVAC_STATUS_SUM", HVAC_status_sum)
+	#streamer.log("HVAC_test","ON")
+	streamer.log("HVAC_SYSTEM",HVAC_status[0])
+	streamer.log("HVAC_FAN", HVAC_status[1])
+	streamer.log("HVAC_HEAT", HVAC_status[2])
+	streamer.log("HVAC_COOL", HVAC_status[3])
+	streamer.log("HVAC_AUTO", HVAC_status[4])
 	logger.debug("***HVAC_status")
 	logger.info("***HVAC_SYSTEM is %s" % outStatus[HVAC_status[0]]) 
 	logger.info("***HVAC_FAN is %s" % outStatus[HVAC_status[1]]) 
@@ -248,28 +211,20 @@ def HVAC_logic(override):
 	logger.info("HVAC_logic()")
 	#HVAC_audit()
 	#FAN CYCLE 5 mins of every hour
-	if datetime.now().strftime('%M') in ["00","01","02","03","04","05"]:
+	mins = datetime.now().strftime('%M')
+	if mins in ["00","01","02","03","04","05"]:
+		logger.info("HVAC FAN 5min/hr cycle Running Currently")
 		HVAC_FAN_on()
-	elif HVAC_isAuto() == True:
+	else:
+		logger.info("HVAC FAN 5/min/hr cycle ENDING
 		HVAC_FAN_off()
+
 	if HVAC_isAuto() or override:
 		logger.info("Automatic Mode")
 	        if mode == 2:                           	#HEAT
-			HVAC_COOL_off()				#Because heat is on, turn off cool
 			HVAC_service_audit(2)   		#CHECK THE HEAT RELAY, UPDATE STATUS
-        		#ambient = tempTemps[0]			#CURRENTLY single-sensor set from the 1wire ambient sensor @ thermostat
-        	        hostCounter=0
-			found = 0
-			for hostItem in range(len(tempHosts)):
-				if (found == 0) and (HVAC_which in tempHosts[hostCounter][4]):
-					ambient = tempHosts[hostCounter][3]
-					double_streamer("HVAC_TargetAmbient","%.2f" % ambient)
-					double_streamer("HVAC_which",hostCounter)
-					double_streamer("HVAC_which_str",tempHosts[hostCounter][2])
-					double_streamer("HVAC_SetPoint","%.2f" % setpoint)
-					found = 1
-				hostCounter += 1
-			logger.debug("Ambient: %s" % ambient)
+        		ambient = tempTemps[0]			#CURRENTLY single-sensor set from the 1wire ambient sensor @ thermostat
+        	        logger.debug("Ambient: %s" % ambient)
                 	logger.debug("Set: %s" % setpoint)
                 	if ambient > setpoint + hyst_temp:
                 		logger.info("AUTO TURNING HEAT OFF")
@@ -279,6 +234,7 @@ def HVAC_logic(override):
 				HVAC_HEAT_on()
                 	else:
                         	logger.debug("COMFORT RANGE")
+			HVAC_COOL_off()				#Because heat is on, turn off cool
 	else:
 		logger.info("Manual Mode, Doing Nothing Automatically")
 
@@ -296,7 +252,6 @@ def HVAC_SYSTEM_off():
 	logger.debug("HVAC_SYSTEM_off()")
 	GPIO.output(pinList[0],RELAY_OFF)
 	HVAC_status[0] = 0
-        upload_status()
 	
 def HVAC_SYSTEM_on():
 	#turn on relay 0
@@ -304,7 +259,6 @@ def HVAC_SYSTEM_on():
 	logger.debug("HVAC_SYSTEM_on()")
 	GPIO.output(pinList[0],RELAY_ON)
 	HVAC_status[0] = 1
-        upload_status()
 
 #########################################################
 #
@@ -318,14 +272,12 @@ def HVAC_FAN_on():
         logger.debug("HVAC_FAN_on()")
 	GPIO.output(pinList[1],RELAY_ON)
 	HVAC_status[1] = 1
-        upload_status()
 
 def HVAC_FAN_off():
 	#turn off relay 1
         logger.debug("HVAC_FAN_off()")
 	GPIO.output(pinList[1],RELAY_OFF)
 	HVAC_status[1] = 0
-        upload_status()
 
 #########################################################
 #
@@ -339,14 +291,12 @@ def HVAC_HEAT_on():
         logger.debug("HVAC_HEAT_on()")
 	GPIO.output(pinList[2],RELAY_ON)
 	HVAC_status[2] = 1
-        upload_status()
 
 def HVAC_HEAT_off():
 	#turn off relay 2
         logger.debug("HVAC_HEAT_off()")
 	GPIO.output(pinList[2],RELAY_OFF)
 	HVAC_status[2] = 0
-        upload_status()
 
 #########################################################
 #
@@ -360,14 +310,12 @@ def HVAC_COOL_on():
         logger.debug("HVAC_COOL_on()")
 	GPIO.output(pinList[3],RELAY_ON)
 	HVAC_status[3] = 1
-        upload_status()
 
 def HVAC_COOL_off():
 	#turn off relay 3
         logger.debug("HVAC_COOL_off()")
 	GPIO.output(pinList[3],RELAY_OFF)
 	HVAC_status[3] = 0
-        upload_status()
 
 #########################################################
 #
@@ -380,14 +328,12 @@ def HVAC_AUTO_on():
         logger.debug("HVAC_AUTO_on()")
         GPIO.output(pinList[4],RELAY_ON)
         HVAC_status[4] = 1
-        upload_status()
 
 def HVAC_AUTO_off():
         #turn off relay 4
         logger.debug("HVAC_AUTO_off()")
         GPIO.output(pinList[4],RELAY_OFF)
         HVAC_status[4] = 0
-        upload_status()
 
 def HVAC_isAuto():
 	#HVAC_service_audit(4)      #update manual/auto service
@@ -467,16 +413,15 @@ def poll_1wire_temps():
 		tempTemps[0] = sensor1
 		tempTemps[1] = sensor2
 		#write for PRTG
-		#with open("/var/www/html/1wire-1-RM_AMBIENT.html", "w") as text_file:
-    		#	text_file.write("[{0}]".format(sensor1))
-        	#with open("/var/www/html/1wire-2-DUCT.html", "w") as text_file:
-                #	text_file.write("[{0}]".format(sensor2))
+		with open("/var/www/html/1wire-1-RM_AMBIENT.html", "w") as text_file:
+    			text_file.write("[{0}]".format(sensor1))
+        	with open("/var/www/html/1wire-2-DUCT.html", "w") as text_file:
+                	text_file.write("[{0}]".format(sensor2))
 		#log to initialstate, both buckets
-		if cycleCount == cycles:
-			double_streamer("ThermostatAmbient","%.2f" % sensor1)
-			double_streamer("ThermostatDUCT","%.2f" % sensor2)
-			pi_streamer.log("ThermostatAmbient","%.2f" % sensor1)
-			pi_streamer.log("ThermostatDUCT","%.2f" % sensor2)
+		streamer.log("ThermostatAmbient","%.2f" % sensor1)
+		streamer.log("ThermostatDUCT","%.2f" % sensor2)
+		pistreamer.log("ThermostatAmbient","%.2f" % sensor1)
+		pistreamer.log("ThermostatDUCT","%.2f" % sensor2)
 		#log to the info log
 		logger.info("AMBIENT: %s" % sensor1)
         	logger.info("DUCT: %s" % sensor2)
@@ -517,15 +462,13 @@ def snmp_poller():
                         ###PLAN TO REPLACE THIS CALL WITH SQL:
 			tempHosts[host][3] = temperature
                         #Send result to initialstate, heavily stripped and formatted for compatibility
-                        if cycleCount == cycles: 
-				double_streamer(""+str(tempHosts[host][2]).strip()+"", round(float("%.2f" % temperature),4))
+                        streamer.log(""+str(tempHosts[host][2]).strip()+"", round(float("%.2f" % temperature),4))
   
                     hostCount += 1
 
 def write_runtime( before, after):
 	diff = after-before
-	if cycleCount == cycles:
-		pi_streamer("CoreRuntime",diff)
+	pistreamer.log("CoreRuntime",diff)
 
 
 
@@ -560,13 +503,11 @@ def uptime_poller():
 	uptimeseconds = float(first[0])
 	hours = uptimeseconds / 3600
 	logger.info("Master Pi Up " + "%.2f" % (hours)  + " hours")
-	if cycleCount == cycles:
-		pi_streamer("UPTIME",str("%.2f" % (hours)))
+	pistreamer.log("UPTIME",str("%.2f" % (hours)))
 	currentTime = time.time()
 	processLifetime = (currentTime - startTime) / 3600
 	logger.info("Skynet Daemon Process Lifespan (hours): %s" % processLifetime)
-	if cycleCount == cycles:
-		pi_streamer("Daemon-Uptime", str(processLifetime))
+	pistreamer.log("Daemon-Uptime", str(processLifetime))
 
 
 #########################################################
@@ -589,13 +530,12 @@ def pi_hardware_poller():
 	logger.info("GPU: " + "%.2f" % gpu)
 	logger.info("CPU: " + "%.2f" % cpu)
 	#write for PRTG
-	#with open("/var/www/html/pitemps.html", "w") as text_file:
-    	#	text_file.write("[{0}]".format(gpu))
-    	#	text_file.write("[{0}]".format(cpu))
+	with open("/var/www/html/pitemps.html", "w") as text_file:
+    		text_file.write("[{0}]".format(gpu))
+    		text_file.write("[{0}]".format(cpu))
 	#submit to initialstate
-	if cycleCount == cycles:
-		pi_streamer("Master Pi GPU", str(gpu))
-		pi_streamer("Master Pi CPU", str(cpu))
+	pistreamer.log("Master Pi GPU", str(gpu))
+	pistreamer.log("Master Pi CPU", str(cpu))
 
 #########################################################
 #
@@ -633,17 +573,9 @@ class App():
 	HVAC_init()
         logger.info("*****************************************************************")
         logger.info("INIT: CYCLING RELAYS")
-
-        #turn all the relays off first
-	HVAC_SYSTEM_off()
-        HVAC_FAN_off()
-        HVAC_HEAT_off()
-        HVAC_COOL_off()
-        HVAC_AUTO_off()
-
 	#system first
 	HVAC_SYSTEM_on()
-	time.sleep(0.3)
+	time.sleep(1)
 	HVAC_SYSTEM_off()      #Leave system relay off so nothing else can trigger
 
 	#turn all the relays on
@@ -652,7 +584,7 @@ class App():
 	HVAC_COOL_on()
 	HVAC_AUTO_on()
 
-	time.sleep(0.3)
+	time.sleep(1)
 
 	#turn all the relays off
 	HVAC_FAN_off()
@@ -674,16 +606,22 @@ class App():
 	    t_before=time.clock()
 	    try:
 		#POLLING BLOCK
-		snmp_poller()           #Poll HWg Devices via SNMP
-		#write_prtg_snmp()       #Write SNMP poll data for PRTG
-		uptime_poller()		#Poll this pi's uptime
+		thread.start_new_thread(snmp_poller,())           #Poll HWg Devices via SNMP
+		write_prtg_snmp()       #Write SNMP poll data for PRTG
+		thread.start_new_thread(uptime_poller,())		#Poll this pi's uptime
 		pi_hardware_poller()    #Poll this pi's CPU/GPU
 		poll_1wire_temps()	#Poll this unit's 1-wire sensors		
-		#don't thread these, keep them linear
+
 		HVAC_audit()
-		HVAC_logic(False)	    	
+		HVAC_logic(False)
+	    	
+    		#logger.info("*****************************************************************")
+		#logger.info("SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP SLEEP")
+		#logger.info("*****************************************************************")
+		#time.sleep(10)
+		#logger.info("WAKING UP...")
 		upload_status()
-		#second iteration within the loop, again, don't thread these, keep them linear
+		
 		HVAC_audit()
 		HVAC_logic(False)
 
@@ -697,12 +635,8 @@ class App():
             	logging.info("Finishing")
 	    t_after=time.clock()
 	    write_runtime(t_before,t_after)
-	    global cycleCount
-	    cycleCount += 1
-	    if cycleCount > cycles+1:
-		logger.warn("Heartbeat")
-		global cycleCount
-		cycleCount = 0
+
+
 #########################################################
 #
 #  RUN-ONCE INIT to instantiate App(), set up logger, 
@@ -713,7 +647,7 @@ class App():
 app = App()
 #START UP LOGGER
 logger = logging.getLogger("DaemonLog")
-logger.setLevel(logging.WARN)
+logger.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler = logging.FileHandler("/var/log/skynet/skynetd.log")
 handler.setFormatter(formatter)
