@@ -1,1 +1,2 @@
 # skynetCore
+Author natethetech
