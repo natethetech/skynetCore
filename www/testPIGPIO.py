@@ -40,7 +40,7 @@ else:
 
 
 #BODY & SCRIPT
-pinList = [5,6,13,19,26]
+pinList = [5,6,13,19,21]
 
 relayCount = 0
 relaysON = ["","","","",""]

@@ -1,4 +1,4 @@
-git add .
+git add -A .
 git commit -m "text"
 git push -u origin master
 

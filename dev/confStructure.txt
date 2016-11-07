@@ -1,0 +1,25 @@
+getParams()
+[name,[hour,min],mode,func,[zones],set_temp,hyst_temp,hyst_time]
+program_weekday
+	[
+		0=morning,
+		1=afternoon,
+		2=evening,
+		3=sleep
+		]
+		[
+			0=name,
+			1=[
+				0=start_hour,
+				1=start_mins]
+				]
+			2=mode,
+			3=function,
+			4=[zones],
+			5=set_temp,
+			6=hyst_temp,
+			7=hyst_time
+			]	
+
+
+program_weekday[0-3][0-6]
