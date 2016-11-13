@@ -15,12 +15,10 @@ import re
 import subprocess
 import glob
 import RPi.GPIO as GPIO                                  #traditional gpio
-from cloudStreamer import *
 from datetime import datetime
 from datetime import date
 from pysnmp.hlapi import *
-
-#from ISStreamer.Streamer import Streamer                 #InitialState Streamer
+from ISStreamer.Streamer import Streamer                 #InitialState Streamer
 from daemon import runner
 
 #########################################################
@@ -65,6 +63,16 @@ lastUploads = [
 GPIO.setmode(GPIO.BCM)                                   #set pin numbering to broadcom interface number
 GPIO.setwarnings(False)
 program_file = "/opt/skynet/conf/program.conf"
+
+#########################################################
+#
+#  STREAMERS for InitialState.com
+#
+#########################################################
+
+streamer = Streamer(bucket_name="SKYNET-TEMPS",bucket_key="8WC35WLXAAAY",access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q", buffer_size=30)
+phonestreamer = Streamer(bucket_name="SKYNET-MOBILE",bucket_key="3T5JKNUXJUB9",access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q", buffer_size=30)
+pistreamer = Streamer(bucket_name="SKYNET-PI",bucket_key="J53VN6NNCYEJ",access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q", buffer_size=30)
 
 #########################################################
 #
@@ -347,6 +355,51 @@ def isWeekend():
 		return 1
 	else:
 		return 0
+
+#########################################################
+#
+# main_streamer(
+#
+# write a name & value pair to the primary IS streamer
+#
+#########################################################
+
+def main_streamer(text,value):
+	now = time.time()
+	if now-lastUploads[0] > 0:
+		streamer.log(text,value)
+	lastUploads[0] = time.time()
+
+#########################################################
+#
+# pi_streamer(
+#
+# write a name & value pair to the pi IS streamer
+#
+#########################################################
+
+def pi_streamer(text,value):
+	now = time.time()
+	if now-lastUploads[1] > 0:
+		pistreamer.log(text,value)
+	lastUploads[1] = time.time()
+
+#########################################################
+#
+# double_streamer(
+#
+# write a name & value pair to all streamers
+#
+#########################################################
+
+def double_streamer(text,value):
+	now = time.time()
+	if now-lastUploads[2] > 0:
+		streamer.log(text,value)
+		phonestreamer.log(text,value)
+		pi_streamer(text,value)
+		#streamer.flush()
+	lastUploads[2] = time.time()
 
 #########################################################
 #
