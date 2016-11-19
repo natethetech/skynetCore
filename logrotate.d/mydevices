@@ -1,0 +1,9 @@
+/var/log/mydevices.log {
+        missingok
+        notifempty
+        rotate 7
+        daily
+        compress
+        delaycompress
+        sharedscripts
+}

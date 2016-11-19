@@ -1,0 +1,4 @@
+  File "/opt/skynet/skynetd.py", line 221
+    if nowH >= int(programTime[0]):                 #will yield true until proper time slot  
+                                  ^
+SyntaxError: invalid syntax

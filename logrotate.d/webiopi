@@ -1,0 +1,12 @@
+/var/log/webiopi {
+        missingok
+        notifempty
+        rotate 7
+        daily
+        compress
+        delaycompress
+        sharedscripts
+        postrotate
+                /etc/init.d/webiopi restart
+        endscript
+}

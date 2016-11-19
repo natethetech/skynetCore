@@ -202,6 +202,7 @@ def oneWirePowerCycle():
 def getParams():
 	#get the current time as a pair of discrete integers
 	rightNow = getTime()
+	logger.debug("Current Time: %s" % rightNow)
 	nowH = int(rightNow[0])
 	nowM = int(rightNow[1])
 	
@@ -212,13 +213,14 @@ def getParams():
 			programTime = program_weekday[x][1]		#Yields [hour:minute]
 			if nowH >= int(programTime[0]):			#will yield true until proper time slot
 				found = x
-		currentProgram = program_weekday[x]
+		currentProgram = program_weekday[found]
 	elif isWeekend() == 1:
-	        for x in range(len(program_weekend)):
+	        
+		for x in range(len(program_weekend)):
                       	programTime = program_weekend[x][1]             #Yields [hour:minute]
-                        if nowH >= int(programTime[0]):                 #will yield true until proper time slot  
+		        if nowH >= int(programTime[0]):                 #will yield true until proper time slot  
 				found = x  
-                currentProgram = program_weekend[x]
+                currentProgram = program_weekend[found]
         global programPeriodName
         global startHour
         global startMins
@@ -343,9 +345,12 @@ def getTime():
 
 def isWeekend():
 	dow = date.weekday(datetime.now())
+	logger.info("Day of Week: %s" % dow)
 	if dow in [5,6]:
+		logger.info("WEEKEND")
 		return 1
 	else:
+		logger.info("WEEKDAY")
 		return 0
 
 #########################################################

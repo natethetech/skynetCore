@@ -1,0 +1,12 @@
+/var/log/skynet/*.log {
+        missingok
+        notifempty
+        rotate 55
+        weekly
+        compress
+        delaycompress
+        sharedscripts
+	postrotate
+		/opt/skynet/restart.sh
+	endscript
+}
