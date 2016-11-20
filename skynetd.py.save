@@ -608,6 +608,7 @@ def getAmbient(func,zones):
 
 	elif 'val' in func:
 		#getZone()
+		tempHosts[getZoneID(zo
 	else:
 		logger.error("Unhandled System Function. Check the program config for errors")
 
