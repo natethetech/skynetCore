@@ -2,3 +2,15 @@
     if nowH >= int(programTime[0]):                 #will yield true until proper time slot  
                                   ^
 SyntaxError: invalid syntax
+  File "/opt/skynet/skynetd.py", line 894
+    if errorIndication:
+     ^
+IndentationError: expected an indented block
+  File "/opt/skynet/skynetd.py", line 1088
+    upload_status()
+                ^
+IndentationError: expected an indented block
+  File "/opt/skynet/skynetd.py", line 1104
+    except:
+          ^
+IndentationError: unindent does not match any outer indentation level
