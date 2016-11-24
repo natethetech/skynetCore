@@ -526,21 +526,15 @@ def upload_status():
             tempBuffer += "____ "
         else:
             tempBuffer += "_XX_ "
-
+    logger.info(" 00   01   02   03   04")
     logger.info("SYST FAN  HEAT COOL AUTO")
     logger.info(tempBuffer)
     logger.info(loggerLine())
-
-    #logger.info(loggerFormat("HVAC_SYSTEM") + "%s" % outStatus[HVAC_status[0]])
-    #logger.info(loggerFormat("HVAC_FAN") + "%s" % outStatus[HVAC_status[1]])
-    #logger.info(loggerFormat("HVAC_HEAT") + "%s" % outStatus[HVAC_status[2]])
-    #logger.info(loggerFormat("HVAC_COOL") + "%s" % outStatus[HVAC_status[3]])
-    #logger.info(loggerFormat("HVAC_AUTO") + "%s" % outStatus[HVAC_status[4]])
-    logger.info(loggerFormat("Program Period Name") + "%s" % programPeriodName)
-    logger.info(loggerFormat("Mode") + "%s" % mode)
+    logger.info(loggerFormat("Program Period Name") + "%s" % programPeriodName.upper())
+    logger.info(loggerFormat("Mode") + "%s" % mode.upper())
     logger.info(loggerFormat("Zones") + "%s" % zones)
     logger.info(loggerFormat("Start Hour") + "%s" % startHour)
-    logger.info(loggerFormat("Function") + "%s" % function)
+    logger.info(loggerFormat("Function") + "%s" % function.upper())
     logger.info(loggerFormat("Set Temp") + "%s" % set_temp)
     logger.info(loggerFormat("Hysteresis Temp") + "%s" % hyst_temp)
     logger.info(loggerFormat("Hysteresis Time") + "%s sec" % hyst_time)
@@ -639,8 +633,7 @@ def getZoneID(zoneName):
     if found == 0:
         logger.error("Error occurred during getZoneID()")
     else:
-        #do stuff here
-        pass
+        return found
 
 
 
@@ -655,24 +648,33 @@ def getZoneID(zoneName):
 ############################################################
 
 def getAmbient(func,zones):
-	return tempHosts[1][3]
+    #return tempHosts[1][3]
+    if 'avg' in func:
+        holder = 0.0
+        for room in zones:
+            holder += tempHosts[getZoneID(room)][3]
+        return holder / len(zones)
+    elif 'max' in func:
+        holder = tempHosts[getZoneID(zones[0])][3]   #set holder to the first element's temperature
+        for tempCompare in zones[1:]:
+            tester = tempHosts[getZoneID(tempCompare)][3]
+            if tester > holder:
+                holder = tester
+        return holder
 
-	if 'avg' in func:
-		pass
+    elif 'min' in func:
+        holder = tempHosts[getZoneID(zones[0])][3]   #set holder to the first element's temperature
+        for tempCompare in zones[1:]:
+            tester = tempHosts[getZoneID(tempCompare)][3]
+            if tester < holder:
+                holder = tester
+        return holder
 
-	elif 'max' in func:
-		pass
-
-	elif 'min' in func:
-		pass
-
-	elif 'val' in func:
-		#getZone()
-		pass
-	else:
-		logger.error("Unhandled System Function. Check the program config for errors")
-
-
+    elif 'val' in func:
+        zoneID = getZoneID(zones[0])
+        return tempHosts[zoneID][3]
+    else:
+        logger.error("Unhandled System Function. Check the program config for errors")
 
 ############################################################
 #
