@@ -489,12 +489,12 @@ def upload_status():
     for x in range(len(HVAC_status)):
         ups[statusCounter] = float(HVAC_status[statusCounter]) + statusCounter + (float(statusCounter) / 10)
         statusCounter += 1
-        HVAC_status_sum = 0
+    HVAC_status_sum = 0
     statusCounter = 0
     for x in range(len(HVAC_status)):
         HVAC_status_sum += ups[statusCounter]
         statusCounter += 1
-
+    HVAC_status_sum = HVAC_status_sum / float(2.0)
     #Send globals to initialstate
     double_streamer("HVAC_SYSTEM",HVAC_status[0])
     double_streamer("HVAC_FAN", HVAC_status[1])
@@ -507,10 +507,17 @@ def upload_status():
     double_streamer("HVAC_COOL_ADD", ups[3])
     double_streamer("HVAC_AUTO_ADD", ups[4])
     double_streamer("HVAC_STATUS_SUM", HVAC_status_sum)
-    double_streamer("HVAC_program",programPeriodName)
+    double_streamer("HVAC_program",programPeriodName.upper())
     double_streamer("HVAC_SetPoint","%.2f" % set_temp)
     double_streamer("HVAC_HystTemp","%.2f" % hyst_temp)
     double_streamer("HVAC_HystTime","%.2f" % hyst_time)
+    zonesString = ""
+    for zone in zones:
+        zonesString += zone + " "
+    zonesString = zonesString[:len(zonesString)-1]
+    double_streamer("HVAC_Zones",zonesString.upper())
+    double_streamer("HVAC_Function",function.upper())
+    double_streamer("HVAC_Mode",mode.upper())
     for host in range(SNMP_numHosts):
         if (tempHosts[host][3] < 180) and (tempHosts[host][3] > -180):
             double_streamer(""+str(tempHosts[host][2]).strip()+"", round(float("%.2f" % tempHosts[host][3]),4))
