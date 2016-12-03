@@ -72,7 +72,7 @@ for x in pinList:
 
 print("<h1>TEST</h1><br>")
 #HTML OUTPUT
-print("<form id='dc' name='dc' method='post' action='/cgi-bin/testPIGPIO.py'>")
+print("<form id='dc' name='dc' method='post' action='/cgi-bin/skynet.py'>")
 print("  <table width='600' border='1' cellspacing='0' cellpadding='2'>")
 print("    <tr>")
 print("      <th align='center' scope='col'>CHANNEL</th>")

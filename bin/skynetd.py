@@ -428,7 +428,7 @@ def HVAC_logic(override):
     #
     ############################################################
 
-    if datetime.now().strftime('%M') in ["00","01","02","03","04","05"]:
+    if datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07","08","09"]:
         HVAC_FAN_on()
     elif HVAC_isAuto() == True:
         HVAC_FAN_off()
