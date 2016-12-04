@@ -257,8 +257,8 @@ def upload_status():
     logger.info(loggerFormat("Heat Last On Duration") + heat_on_duration)
     logger.info(loggerFormat("Heat Last Off") + heat_off_time)
     logger.info(loggerFormat("Heat Last Off Duration") + heat_off_duration)
-    time_since_last_heat = "%s (sec) " % seconds_since_last_heat
-    time_since_last_heat += "(%s hours)" % round(seconds_since_last_heat / 3600,1)
+    time_since_last_heat = "%ssec " % seconds_since_last_heat
+    time_since_last_heat += "(%shr)" % round(seconds_since_last_heat / 3600,1)
     logger.info(loggerFormat("Time Since Last Heat") + time_since_last_heat)
     seconds_since_startup = time.time() - startTime
     time_since_startup = "%.1fsec" % seconds_since_startup
@@ -475,7 +475,7 @@ def HVAC_logic(override):
     #
     ############################################################
 
-    if (datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07","08","09"] and (time.time()-startTime) > 120) :   ###added to smooth out fan behavior while developing
+    if (datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07"] and (time.time()-startTime) > 120) :   ###added to smooth out fan behavior while developing
         HVAC_FAN_on()
     elif HVAC_isAuto() == True:
         HVAC_FAN_off()
