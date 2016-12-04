@@ -73,9 +73,6 @@ global HEAT_runtimes
 
 ambient = 999
 
-cycleCount = 0
-cycles = 3
-
 program_weekday = []
 program_weekend = []
 
@@ -204,7 +201,10 @@ def upload_status():
     else:
         heat_on_time = "[INIT]"
 
-    seconds_since_last_heat = round(time.time()-HEAT_times[0],1)
+    if HVAC_status[2] == 1:
+        seconds_since_last_heat = 0
+    else:
+        seconds_since_last_heat = round(time.time()-HEAT_times[0],1)
 
     #Send globals to initialstate
     double_streamer("HVAC_SYSTEM",HVAC_status[0])
@@ -220,13 +220,14 @@ def upload_status():
     double_streamer("HVAC_STATUS_SUM", HVAC_status_sum)
     double_streamer("HVAC_program",programPeriodName.upper())
     double_streamer("HVAC_SetPoint","%s" % set_temp)
+    double_streamer("HVAC_TriggerPoint", "%.1f" % (float(set_temp) - float(hyst_temp)))
     double_streamer("HVAC_HystTemp","%.1f" % hyst_temp)
     double_streamer("HVAC_HystTime","%s" % int(hyst_time))
     double_streamer("HVAC_heatLastOn",heat_on_time)
-    double_streamer("HVAC_heatLastOnDuration", heat_on_duration)
+    double_streamer("HVAC_heatLastOnSeconds", heat_on_duration)
     double_streamer("HVAC_heatLastOff",heat_off_time)
-    double_streamer("HVAC_heatLastOffDuration", heat_off_duration)
-    double_streamer("SecondsSinceLastHeat",seconds_since_last_heat)
+    double_streamer("HVAC_heatLastOffSeconds", heat_off_duration)
+    double_streamer("SecondsSinceLastBurn",seconds_since_last_heat)
     zonesString = ""
     for zone in zones:
         zonesString += zone + " "
@@ -248,7 +249,7 @@ def upload_status():
         if (HVAC_status[services] == 0):
             tempBuffer += "____ "
         else:
-            tempBuffer += "_XX_ "
+            tempBuffer += "XXXX "
     logger.info(" 00   01   02   03   04")
     logger.info("SYST FAN  HEAT COOL AUTO")
     logger.info(tempBuffer)
@@ -351,6 +352,7 @@ def write_runtime( before, after):
 
 def HVAC_service_audit(which):
     global logger
+    global HVAC_status
     logger.debug("HVAC_service_audit(%s)" % which)
 
     pinstat = GPIO.input(pinList[which])
@@ -363,6 +365,11 @@ def HVAC_service_audit(which):
             logger.info("*****HVAC_status: %s" % HVAC_status[which])
             logger.info("*****Pin Status: %s" % pinstatus)
             HVAC_status[which] = pinstatus
+            if which == 2:                    #if pin status changed, run the appropriate function so timestamps get updated
+                if pinstatus == 1:
+                    HVAC_HEAT_on()
+                elif pinstatus == 0:
+                    HVAC_HEAT_off()
     elif (HVAC_status[which] != pinstatus) and (which == HVACpin_AUTO):
         logger.info("**********AUTOMATIC MODE CHANGE DETECTED***************")
         if pinstat:
@@ -560,12 +567,12 @@ def HVAC_logic_runAuto():
         global HEAT_runtimes
         timeNow = time.time()
         logger.info((timeNow - HEAT_times[0]))
-        if ((timeNow - HEAT_times[0]) > hyst_time) or ((timeNow - startTime) > 60 and (timeNow - startTime) < hyst_time) or (HVAC_status[3] == 1):
-            if ambient > set_temp:
+        if ((timeNow - HEAT_times[0]) > hyst_time) or ((timeNow - startTime) > 60 and (timeNow - startTime) < hyst_time) or (HVAC_status[2] == 1):
+            if ambient >= set_temp:
                 logger.debug(">>>>>HEAT OFF")
                 if HVAC_status[2] == 1:
                     HVAC_HEAT_off()
-            elif ambient < set_temp - hyst_temp:
+            elif ambient <= set_temp - hyst_temp:
                 logger.debug(">>>>>HEAT ON")
                 if HVAC_status[2] == 0:
                     HVAC_HEAT_on()
@@ -625,25 +632,29 @@ def HVAC_HEAT_on():
     global logger
     global HEAT_times
     global HEAT_runtimes
-    if time.time()-startTime >= 90:   #guaranteed 90 seconds of "init"
-        HEAT_times[1] = time.time()   #1 index is time-since-ON
-        HEAT_runtimes[0] = round(time.time() - HEAT_times[0],1)
+    timeNow = time.time()
+    if timeNow-startTime >= 90:   #guaranteed 90 seconds of "init"
+        HEAT_times[1] = timeNow   #1 index is time-since-ON
+        HEAT_runtimes[0] = round(timeNow - HEAT_times[0],1)
         #turn on relay 2
         logger.debug("HVAC_HEAT_on()")
         GPIO.output(pinList[2],RELAY_ON)
         HVAC_status[2] = 1
+        write_heat_lastOn()
 
 def HVAC_HEAT_off():
     global logger
     global HEAT_times
     global HEAT_runtimes
-    if time.time()-startTime >= 90:   #guaranteed 90 seconds of "init"
-        HEAT_times[0] = time.time()  #0 index is time-since-OFF
-        HEAT_runtimes[1] = round(time.time() - HEAT_times[1],1)
+    timeNow = time.time()
+    if timeNow-startTime >= 90:   #guaranteed 90 seconds of "init"
+        HEAT_times[0] = timeNow  #0 index is time-since-OFF
+        HEAT_runtimes[1] = round(timeNow - HEAT_times[1],1)
         #turn off relay 2
         logger.debug("HVAC_HEAT_off()")
         GPIO.output(pinList[2],RELAY_OFF)
         HVAC_status[2] = 0
+        write_heat_lastOff()
 
 #########################################################
 #
@@ -696,6 +707,89 @@ def HVAC_isAuto():
     else:
         logger.error("SERVICE AUDIT - AUTO - FAILED")
         return False
+
+########################################################################################################################
+#
+#  FUNCTION BLOCKS: HVAC State Last-On-Off Writer
+#
+########################################################################################################################
+
+#########################################################
+#
+# write_heat_lastOff(epoch_secs)
+#
+#########################################################
+
+def write_heat_lastOff():
+    global HEAT_times
+    global HEAT_runtimes
+    logger.info("write_heat_lastOff()")
+    logger.info("HEAT_times[0]: %s" % HEAT_times[0])
+    logger.info("HEAT_runtimes[1]: %s" % HEAT_runtimes[0])
+    try:
+        with open("/opt/skynet/states/heat_last_off", "w") as text_file:
+            text_file.write(str(HEAT_times[0]) + "\n")
+            text_file.write(str(HEAT_runtimes[1]) + "\n")
+            text_file.close()
+    except:
+        logger.error("heat_lastOff writer error!")
+
+#########################################################
+#
+# write_heat_lastOn(epoch_secs)
+#
+#########################################################
+
+def write_heat_lastOn():
+    global HEAT_times
+    global HEAT_runtimes
+    logger.info("write_heat_lastOn()")
+    logger.info("HEAT_times[1]: %s" % HEAT_times[1])
+    logger.info("HEAT_runtimes[0]: %s" % HEAT_runtimes[1])
+#    try:
+    with open("/opt/skynet/states/heat_last_on", "w") as text_file:
+        text_file.write(str(HEAT_times[1]) + "\n")
+        text_file.write(str(HEAT_runtimes[0]) + "\n")
+        text_file.close()
+#    except:
+#        logger.error("heat_lastOn writer error!")
+
+#########################################################
+#
+# read_heat_lastOff()
+#
+#########################################################
+
+def read_heat_lastOff():
+    global HEAT_times
+    global HEAT_runtimes
+    logger.info("read_heat_lastOff()")
+    try:
+        with open("/opt/skynet/states/heat_last_off", "r") as text_file:
+            HEAT_times[0] = float(text_file.readline().strip())
+            HEAT_runtimes[1] = float(text_file.readline().strip())
+            text_file.close()
+    except:
+        logger.error("heat_lastOff reader error!")
+
+#########################################################
+#
+# read_heat_lastOn()
+#
+#########################################################
+
+def read_heat_lastOn():
+    global HEAT_times
+    global HEAT_runtimes
+    logger.info("read_heat_lastOn()")
+    try:
+        with open("/opt/skynet/states/heat_last_on", "r") as text_file:
+            HEAT_times[1] = float(text_file.readline().strip())
+            HEAT_runtimes[0] = float(text_file.readline().strip())
+            text_file.close()
+    except:
+        logger.error("heat_lastOn reader error!")
+
 
 ########################################################################################################################
 #
@@ -1173,15 +1267,20 @@ class App():
     #########################################################
 
     def run(self):
-        logger.info("*****************************************************************")
+        logger.info(loggerLine())
         logger.info("STARTUP INIT")
+        logger.info("")
+        logger.info("Initializing Heat On/Off Times")
+        read_heat_lastOff()
+        read_heat_lastOn()
+        logger.info(loggerLine())
         logger.info("Initializing HVAC_init()")
         HVAC_init()
+        logger.info(loggerLine())
         logger.info("Initializing 1-Wire Interface()")
         oneWirePowerInit()
-        logger.info("*****************************************************************")
+        logger.info(loggerLine())
         logger.info("INIT: CYCLING RELAYS")
-
         #turn all the relays off first
         HVAC_SYSTEM_off()
         HVAC_FAN_off()
@@ -1212,8 +1311,9 @@ class App():
 
         #start up
         HVAC_goAuto()
-        HVAC_SYSTEM_on()
+        HVAC_SYSTEM_on()  ###DEVELOPMENT LEAVE SYSTEM OFF
 
+        logger.info(loggerLine())
         logger.info("INIT: STARTING MAIN LOOP")
 
     	load_program()      		  			#open, read, and parse config file that contains temps and periods
@@ -1250,11 +1350,6 @@ class App():
                 logging.info("Finishing")
             t_after=time.clock()
             write_runtime(t_before,t_after)
-            global cycleCount
-            cycleCount += 1
-            if cycleCount > cycles+1:
-                logger.info("Heartbeat")
-            cycleCount = 0
 
 #########################################################
 #
