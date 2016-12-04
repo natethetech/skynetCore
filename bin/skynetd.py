@@ -71,7 +71,7 @@ global HEAT_runtimes
 #
 #########################################################
 
-ambient = "999"
+ambient = 999
 
 cycleCount = 0
 cycles = 3
@@ -94,10 +94,10 @@ COOL_times = []
 
 
 lastUploads = [
-        time.time(),     #[0] main_streamer
-        time.time(),     #[1] pi_streamer
-        time.time()      #[2] double_streamer
-        ]
+    time.time(),     #[0] main_streamer
+    time.time(),     #[1] pi_streamer
+    time.time()      #[2] double_streamer
+]
 
 #########################################################
 #
@@ -133,11 +133,11 @@ SNMP_numHosts = len(tempHosts)
 #########################################################
 
 pinList = [
-	5,     #Relay 0: SYSTEM LOCK/ENABLE
-	6,     #Relay 1: FAN/Blower Control
-	13,    #Relay 2: HEAT Control
-	19,    #Relay 3: COOL Control
-	21,    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
+    5,     #Relay 0: SYSTEM LOCK/ENABLE
+    6,     #Relay 1: FAN/Blower Control
+    13,    #Relay 2: HEAT Control
+    19,    #Relay 3: COOL Control
+    21,    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
     ]
 
 HVACpin_SYSTEM = 0
@@ -185,7 +185,7 @@ def upload_status():
     for x in range(len(HVAC_status)):
         HVAC_status_sum += ups[statusCounter]
         statusCounter += 1
-    HVAC_status_sum = HVAC_status_sum / float(2.0)
+    HVAC_status_sum = round(HVAC_status_sum / float(2.0),1)
 
     if HEAT_runtimes[0] > 0:
         heat_off_duration = "%s" % HEAT_runtimes[0]
@@ -204,6 +204,7 @@ def upload_status():
     else:
         heat_on_time = "[INIT]"
 
+    seconds_since_last_heat = round(time.time()-HEAT_times[0],1)
 
     #Send globals to initialstate
     double_streamer("HVAC_SYSTEM",HVAC_status[0])
@@ -225,6 +226,7 @@ def upload_status():
     double_streamer("HVAC_heatLastOnDuration", heat_on_duration)
     double_streamer("HVAC_heatLastOff",heat_off_time)
     double_streamer("HVAC_heatLastOffDuration", heat_off_duration)
+    double_streamer("SecondsSinceLastHeat",seconds_since_last_heat)
     zonesString = ""
     for zone in zones:
         zonesString += zone + " "
@@ -255,6 +257,9 @@ def upload_status():
     logger.info(loggerFormat("Heat Last On Duration") + heat_on_duration)
     logger.info(loggerFormat("Heat Last Off") + heat_off_time)
     logger.info(loggerFormat("Heat Last Off Duration") + heat_off_duration)
+    time_since_last_heat = "%s (sec) " % seconds_since_last_heat
+    time_since_last_heat += "(%s hours)" % round(seconds_since_last_heat / 3600,1)
+    logger.info(loggerFormat("Time Since Last Heat") + time_since_last_heat)
     seconds_since_startup = time.time() - startTime
     time_since_startup = "%.1fsec" % seconds_since_startup
     time_since_startup += " (%.1fhr)" % (seconds_since_startup / 3600.00)
@@ -268,7 +273,7 @@ def upload_status():
     logger.info(loggerFormat("Set Temp") + "%s" % set_temp)
     logger.info(loggerFormat("Hysteresis Temp") + "%s" % hyst_temp)
     logger.info(loggerFormat("Hysteresis Time") + "%s sec" % hyst_time)
-    logger.info(loggerFormat("Current Ambient") + "%s" % ambient)
+    logger.info(loggerFormat("Current Ambient") + "%.1f" % ambient)
     logger.info(loggerLine())
     for host in range(SNMP_numHosts):
         logger.info(loggerFormat(tempHosts[host][2]) + "%.1f" % tempHosts[host][3] + 'F')
@@ -298,13 +303,13 @@ global loggerSpaces
 loggerSpaces = 30
 
 def loggerFormat(incoming):
-	spacersNeeded = loggerSpaces - len(incoming)
-	if spacersNeeded < 0:
-		logger.error("FORMATTING ERROR! STRING IS TOO LONG! Current width of labels column: %s characters" % loggerSpaces)
-	elif spacersNeeded == 0:
-		logger.warn("FORMATTING WARNING! STRING IS SAME WIDTH AS COLUMN! Current width of labels column: %s characters" % loggerSpaces)
-	else:
-		return (incoming.rjust(loggerSpaces) + ": ")
+    spacersNeeded = loggerSpaces - len(incoming)
+    if spacersNeeded < 0:
+        logger.error("FORMATTING ERROR! STRING IS TOO LONG! Current width of labels column: %s characters" % loggerSpaces)
+    elif spacersNeeded == 0:
+        logger.warn("FORMATTING WARNING! STRING IS SAME WIDTH AS COLUMN! Current width of labels column: %s characters" % loggerSpaces)
+    else:
+        return (incoming.rjust(loggerSpaces) + ": ")
 
 ########################################################################################################################
 #
@@ -321,8 +326,8 @@ def loggerFormat(incoming):
 #########################################################
 
 def write_runtime( before, after):
-	diff = after-before
-	pi_streamer("CoreRuntime",diff)
+    diff = after-before
+    pi_streamer("CoreRuntime",diff)
 
 ########################################################################################################################
 #
@@ -504,13 +509,13 @@ def getAmbient(func,zones):
         holder = 0.0
         for room in zones:
             holder += tempHosts[getZoneID(room)][3]
-        return holder / len(zones)
+        return round(holder / len(zones),1)
     elif 'max' in func:
         holder = tempHosts[getZoneID(zones[0])][3]   #set holder to the first element's temperature
         for tempCompare in zones[1:]:
             tester = tempHosts[getZoneID(tempCompare)][3]
             if tester > holder:
-                holder = tester
+                holder = round(tester,1)
         return holder
 
     elif 'min' in func:
@@ -518,12 +523,12 @@ def getAmbient(func,zones):
         for tempCompare in zones[1:]:
             tester = tempHosts[getZoneID(tempCompare)][3]
             if tester < holder:
-                holder = tester
+                holder = round(tester,1)
         return holder
 
     elif 'val' in func:
         zoneID = getZoneID(zones[0])
-        return tempHosts[zoneID][3]
+        return round(tempHosts[zoneID][3],1)
     else:
         logger.error("Unhandled System Function. Check the program config for errors")
 
@@ -556,7 +561,7 @@ def HVAC_logic_runAuto():
         timeNow = time.time()
         logger.info((timeNow - HEAT_times[0]))
         if ((timeNow - HEAT_times[0]) > hyst_time) or ((timeNow - startTime) > 60 and (timeNow - startTime) < hyst_time) or (HVAC_status[3] == 1):
-            if ambient > set_temp + hyst_temp:
+            if ambient > set_temp:
                 logger.debug(">>>>>HEAT OFF")
                 if HVAC_status[2] == 1:
                     HVAC_HEAT_off()
@@ -618,27 +623,27 @@ def HVAC_FAN_off():
 
 def HVAC_HEAT_on():
     global logger
-    #turn on relay 2
-    logger.debug("HVAC_HEAT_on()")
-    GPIO.output(pinList[2],RELAY_ON)
-    HVAC_status[2] = 1
     global HEAT_times
     global HEAT_runtimes
     if time.time()-startTime >= 90:   #guaranteed 90 seconds of "init"
         HEAT_times[1] = time.time()   #1 index is time-since-ON
         HEAT_runtimes[0] = round(time.time() - HEAT_times[0],1)
+        #turn on relay 2
+        logger.debug("HVAC_HEAT_on()")
+        GPIO.output(pinList[2],RELAY_ON)
+        HVAC_status[2] = 1
 
 def HVAC_HEAT_off():
     global logger
-    #turn off relay 2
-    logger.debug("HVAC_HEAT_off()")
-    GPIO.output(pinList[2],RELAY_OFF)
-    HVAC_status[2] = 0
     global HEAT_times
     global HEAT_runtimes
     if time.time()-startTime >= 90:   #guaranteed 90 seconds of "init"
         HEAT_times[0] = time.time()  #0 index is time-since-OFF
         HEAT_runtimes[1] = round(time.time() - HEAT_times[1],1)
+        #turn off relay 2
+        logger.debug("HVAC_HEAT_off()")
+        GPIO.output(pinList[2],RELAY_OFF)
+        HVAC_status[2] = 0
 
 #########################################################
 #
@@ -707,16 +712,11 @@ def HVAC_isAuto():
 #########################################################
 
 def write_prtg_snmp():
-	#write room sensor data to html
-        logger.debug("write_prtg_snmp()")
-	with open("/var/www/html/temps.html", "w") as text_file:
-  		for host in range(SNMP_numHosts):
-    			text_file.write("[{0}]".format(tempHosts[host][3]))
-
-
-
-
-
+    #write room sensor data to html
+    logger.debug("write_prtg_snmp()")
+    with open("/var/www/html/temps.html", "w") as text_file:
+        for host in range(SNMP_numHosts):
+            text_file.write("[{0}]".format(tempHosts[host][3]))
 
 ########################################################################################################################
 #
@@ -739,12 +739,12 @@ def uptime_poller():
     first = output.split(' ')
     uptimeseconds = float(first[0])
     hours = uptimeseconds / 3600
-    logger.info(loggerFormat("Thermostat Board Uptime") + "%.2f" % (hours)  + " hours")
-    pi_streamer("UPTIME",str("%.2f" % (hours)))
+    logger.info(loggerFormat("Thermostat Board Uptime") + "%.4f" % (hours)  + " hours")
+    pi_streamer("UPTIME",str("%.4f" % (hours)))
     currentTime = time.time()
     processLifetime = (currentTime - startTime) / 3600
-    logger.info(loggerFormat("Process Lifespan (hours)") + "%s" % processLifetime)
-    pi_streamer("Daemon-Uptime", str(processLifetime))
+    logger.info(loggerFormat("Process Lifespan (hours)") + "%.4f" % processLifetime)
+    pi_streamer("Daemon-Uptime", "%.4f" % processLifetime)
 
 #########################################################
 #
@@ -755,24 +755,24 @@ def uptime_poller():
 #########################################################
 
 def pi_hardware_poller():
-	#get pi gpu/cpu temps, then convert them to degrees F
-	output = subprocess.check_output(['/opt/skynet/bin/piTemp.sh'])
-	#parse
-	first = output.split('=')
-	second = str(first[1]).split()
-	third = str(second[0]).split('\'')
-	#assign & convert
-	gpu = (float(third[0]) * 1.8) + 32
-	cpu = (float(second[1]) / 1000 * 1.8) + 32
-	logger.info(loggerFormat("GPU") + "%.2f" % gpu)
-	logger.info(loggerFormat("CPU") + "%.2f" % cpu)
-	#write for PRTG
-	with open("/var/www/html/pitemps.html", "w") as text_file:
-    		text_file.write("[{0}]".format(gpu))
-    		text_file.write("[{0}]".format(cpu))
-	#submit to initialstate
-	pi_streamer("Master Pi GPU", str(gpu))
-	pi_streamer("Master Pi CPU", str(cpu))
+    #get pi gpu/cpu temps, then convert them to degrees F
+    output = subprocess.check_output(['/opt/skynet/bin/piTemp.sh'])
+    #parse
+    first = output.split('=')
+    second = str(first[1]).split()
+    third = str(second[0]).split('\'')
+    #assign & convert
+    gpu = round((float(third[0]) * 1.8) + 32,1)
+    cpu = round((float(second[1]) / 1000 * 1.8) + 32,1)
+    logger.info(loggerFormat("GPU") + "%.1f" % gpu)
+    logger.info(loggerFormat("CPU") + "%.1f" % cpu)
+    #write for PRTG
+    with open("/var/www/html/pitemps.html", "w") as text_file:
+        text_file.write("[{0}]".format(gpu))
+        text_file.write("[{0}]".format(cpu))
+    #submit to initialstate
+    pi_streamer("Master Pi GPU", str(gpu))
+    pi_streamer("Master Pi CPU", str(cpu))
 
 ########################################################################################################################
 #
@@ -838,8 +838,6 @@ def snmp_poller():
                 tempHosts[host][3] = round(temperature,1)
         hostCount += 1
 
-
-
 ########################################################################################################################
 #
 #  FUNCTION BLOCKS: Time Awareness
@@ -855,7 +853,7 @@ def snmp_poller():
 #########################################################
 
 def getTime():
-	return [datetime.now().strftime('%H'),datetime.now().strftime('%M')]
+    return [datetime.now().strftime('%H'),datetime.now().strftime('%M')]
 
 #########################################################
 #
@@ -867,14 +865,14 @@ def getTime():
 #########################################################
 
 def isWeekend():
-	dow = date.weekday(datetime.now())
-	logger.debug("Day of Week: %s" % dow)
-	if dow in [5,6]:
-		logger.debug("WEEKEND")
-		return 1
-	else:
-		logger.debug("WEEKDAY")
-		return 0
+    dow = date.weekday(datetime.now())
+    logger.debug("Day of Week: %s" % dow)
+    if dow in [5,6]:
+        logger.debug("WEEKEND")
+        return 1
+    else:
+        logger.debug("WEEKDAY")
+        return 0
 
 ########################################################################################################################
 #
@@ -891,8 +889,8 @@ def isWeekend():
 #########################################################
 
 def oneWirePowerInit():
-	GPIO.setup(oneWirePowerPin, GPIO.OUT)
-	GPIO.output(oneWirePowerPin, GPIO.HIGH)
+    GPIO.setup(oneWirePowerPin, GPIO.OUT)
+    GPIO.output(oneWirePowerPin, GPIO.HIGH)
 
 #########################################################
 #
@@ -903,13 +901,13 @@ def oneWirePowerInit():
 #########################################################
 
 def pollOneWirePower():
-	currentOneWirePinStatus = GPIO.input(oneWirePowerPin)
-	if currentOneWirePinStatus == GPIO.HIGH:
-		logger.info(loggerFormat("1-Wire Power Pin") + "ENABLED/ON")
-		double_streamer("1WireReset",0)
-	else:
-		logger.warn(loggerFormat("1-Wire Power Pin") + "RESET/OFF")
-		double_streamer("1WireReset",1)
+    currentOneWirePinStatus = GPIO.input(oneWirePowerPin)
+    if currentOneWirePinStatus == GPIO.HIGH:
+        logger.info(loggerFormat("1-Wire Power Pin") + "ENABLED/ON")
+        double_streamer("1WireReset",0)
+    else:
+        logger.warn(loggerFormat("1-Wire Power Pin") + "RESET/OFF")
+        double_streamer("1WireReset",1)
 
 #########################################################
 #
@@ -921,20 +919,20 @@ def pollOneWirePower():
 #########################################################
 
 def oneWirePowerCycle():
-	global oneWireResetTime
-	logger.error("oneWirePowerCycle()")
-	logger.error(time.time()-oneWireResetTime)
-	currentOneWirePinStatus = GPIO.input(oneWirePowerPin)
-	if currentOneWirePinStatus == GPIO.HIGH:
-		#sensor power is enabled, disable it and mark the time
-		oneWireResetTime = time.time()
-		GPIO.output(oneWirePowerPin, GPIO.LOW)
-	else:
-		#sensor power is already off, check time and re-enable if long enough
-		ONE_WIRE_OFF_TIME = 20    #seconds to keep 1-wire sensors off before powering back on
-		if time.time() - oneWireResetTime > ONE_WIRE_OFF_TIME:
-			GPIO.output(oneWirePowerPin, GPIO.HIGH)
-			oneWireResetTime = time.time()
+    global oneWireResetTime
+    logger.error("oneWirePowerCycle()")
+    logger.error(time.time()-oneWireResetTime)
+    currentOneWirePinStatus = GPIO.input(oneWirePowerPin)
+    if currentOneWirePinStatus == GPIO.HIGH:
+        #sensor power is enabled, disable it and mark the time
+        oneWireResetTime = time.time()
+        GPIO.output(oneWirePowerPin, GPIO.LOW)
+    else:
+        #sensor power is already off, check time and re-enable if long enough
+        ONE_WIRE_OFF_TIME = 20    #seconds to keep 1-wire sensors off before powering back on
+        if time.time() - oneWireResetTime > ONE_WIRE_OFF_TIME:
+            GPIO.output(oneWirePowerPin, GPIO.HIGH)
+            oneWireResetTime = time.time()
 
 #########################################################
 #
@@ -946,27 +944,27 @@ def oneWirePowerCycle():
 #########################################################
 
 def read_temp_raw(which):
-	logger.debug("READ_TEMP_RAW: %s" % which)
-        logger.debug(device_file[which])
-	f = open(device_file[which], 'r')
-        lines = f.readlines()
-        f.close()
-        return lines
+    logger.debug("READ_TEMP_RAW: %s" % which)
+    logger.debug(device_file[which])
+    f = open(device_file[which], 'r')
+    lines = f.readlines()
+    f.close()
+    return lines
 
 def read_temp(which):
-        logger.debug("READ_TEMP: %s" % which)
-	lines = read_temp_raw(which)
-	logger.debug(lines[0])
-	logger.debug(lines[1])
-        while lines[0].strip()[-3:] != 'YES':
-                time.sleep(0.2)
-                lines = read_temp_raw(which)
-        equals_pos = lines[1].find('t=')
-        if equals_pos != -1:
-                temp_string = lines[1][equals_pos+2:]
-		temp_c = float(temp_string) / 1000.0
-                temp_f = temp_c * 9.0 / 5.0 + 32.0
-                return temp_f
+    logger.debug("READ_TEMP: %s" % which)
+    lines = read_temp_raw(which)
+    logger.debug(lines[0])
+    logger.debug(lines[1])
+    while lines[0].strip()[-3:] != 'YES':
+        time.sleep(0.2)
+        lines = read_temp_raw(which)
+    equals_pos = lines[1].find('t=')
+    if equals_pos != -1:
+        temp_string = lines[1][equals_pos+2:]
+        temp_c = float(temp_string) / 1000.0
+        temp_f = temp_c * 9.0 / 5.0 + 32.0
+        return round(temp_f,1)
 
 #########################################################
 #
@@ -1034,45 +1032,44 @@ def poll_1wire_temps():
 #########################################################
 
 def getParams():
-	#get the current time as a pair of discrete integers
-	rightNow = getTime()
-	logger.debug("Current Time: %s" % rightNow)
-	nowH = int(rightNow[0])
-	nowM = int(rightNow[1])
+    #get the current time as a pair of discrete integers
+    rightNow = getTime()
+    logger.debug("Current Time: %s" % rightNow)
+    nowH = int(rightNow[0])
+    nowM = int(rightNow[1])
 
-	found = -1
-	currentProgram = []
-	if isWeekend() == 0:
-		for x in range(len(program_weekday)):
-			programTime = program_weekday[x][1]		#Yields [hour:minute]
-			if nowH >= int(programTime[0]):			#will yield true until proper time slot
-				found = x
-		currentProgram = program_weekday[found]
-	elif isWeekend() == 1:
-
-		for x in range(len(program_weekend)):
-                      	programTime = program_weekend[x][1]             #Yields [hour:minute]
-		        if nowH >= int(programTime[0]):                 #will yield true until proper time slot
-				found = x
-                currentProgram = program_weekend[found]
-        global programPeriodName
-        global startHour
-        global startMins
-        global mode
-        global function
-        global zones
-        global set_temp
-        global hyst_temp
-        global hyst_time
-        programPeriodName=currentProgram[0]
-        startHour=int(currentProgram[1][0])
-        startMins=int(currentProgram[1][1])
-        mode=currentProgram[2]
-        function=currentProgram[3]
-        zones=currentProgram[4]
-        set_temp=float(currentProgram[5])
-        hyst_temp=float(currentProgram[6])
-        hyst_time=int(currentProgram[7])
+    found = -1
+    currentProgram = []
+    if isWeekend() == 0:
+        for x in range(len(program_weekday)):
+            programTime = program_weekday[x][1]		#Yields [hour:minute]
+            if nowH >= int(programTime[0]):			#will yield true until proper time slot
+                found = x
+        currentProgram = program_weekday[found]
+    elif isWeekend() == 1:
+        for x in range(len(program_weekend)):
+            programTime = program_weekend[x][1]             #Yields [hour:minute]
+            if nowH >= int(programTime[0]):                 #will yield true until proper time slot
+                found = x
+        currentProgram = program_weekend[found]
+    global programPeriodName
+    global startHour
+    global startMins
+    global mode
+    global function
+    global zones
+    global set_temp
+    global hyst_temp
+    global hyst_time
+    programPeriodName=currentProgram[0]
+    startHour=int(currentProgram[1][0])
+    startMins=int(currentProgram[1][1])
+    mode=currentProgram[2]
+    function=currentProgram[3]
+    zones=currentProgram[4]
+    set_temp=float(currentProgram[5])
+    hyst_temp=float(currentProgram[6])
+    hyst_time=int(currentProgram[7])
 
 #########################################################
 #
@@ -1083,10 +1080,10 @@ def getParams():
 #########################################################
 
 def read_program_raw():
-        f = open(program_file, 'r')
-        lines = f.readlines()
-        f.close()
-        return lines
+    f = open(program_file, 'r')
+    lines = f.readlines()
+    f.close()
+    return lines
 
 #########################################################
 #
@@ -1097,45 +1094,45 @@ def read_program_raw():
 #########################################################
 
 def parse_program(lines):
-	global program_weekday
-	global program_weekend
-	program_weekday = []
-	program_weekend = []
-	hyst_time = 0
-        if "WEEKDAY" in lines[0]:    			  		#FORMAT TEST: FIRST LINE MUST BE WEEKDAY
-            line = 0
-            for x in range(8):          		  		#four period setttings for each [weekday|weekend]
-                thisblock=line				 		#line counting
-                for ticker in range(10):					#eight elements of data plus one blank per block
-                    one_var = lines[thisblock+ticker].split('=')
-                    if len(one_var) > 1:				#handle expected blank line between sections
-                        variableName = one_var[0].strip()		#Strip the line of newlines & unexpected junk
-                        value = one_var[1].strip()
-                        if 'period' in variableName:			#Begin checking and storing variables
-                                period = int(value)
-                        if 'name' in variableName:
-                                name = value
-                        if 'start_time' in variableName:
-                                start_time_hhmm = value.split(':')
-                                hours = start_time_hhmm[0]
-                                minutes = start_time_hhmm[1]
-                        if 'function' in variableName:
-                                function = value
-                        if 'zones' in variableName:
-                                zones = value.split(',')
-                        if 'set_temp' in variableName:
-                                setTemp = float(value)
-                        if 'hyst_temp' in variableName:
-                                hyst_temp = float(value)
-                        if 'hyst_time' in variableName:
-                                hyst_time = int(value)
-			if 'mode' in variableName:
-				mode = value
-                    line += 1						#line counting
-                if (x < 4):
-                        program_weekday.insert(x,[name,[hours,minutes],mode,function,zones,setTemp,hyst_temp,hyst_time])
-                if (x >= 4):
-                        program_weekend.insert(x-4,[name,[hours,minutes],mode,function,zones,setTemp,hyst_temp,hyst_time])
+    global program_weekday
+    global program_weekend
+    program_weekday = []
+    program_weekend = []
+    hyst_time = 0
+    if "WEEKDAY" in lines[0]:    			  		#FORMAT TEST: FIRST LINE MUST BE WEEKDAY
+        line = 0
+        for x in range(8):          		  		#four period setttings for each [weekday|weekend]
+            thisblock=line				 		#line counting
+            for ticker in range(10):					#eight elements of data plus one blank per block
+                one_var = lines[thisblock+ticker].split('=')
+                if len(one_var) > 1:				#handle expected blank line between sections
+                    variableName = one_var[0].strip()		#Strip the line of newlines & unexpected junk
+                    value = one_var[1].strip()
+                    if 'period' in variableName:			#Begin checking and storing variables
+                        period = int(value)
+                    if 'name' in variableName:
+                        name = value
+                    if 'start_time' in variableName:
+                        start_time_hhmm = value.split(':')
+                        hours = start_time_hhmm[0]
+                        minutes = start_time_hhmm[1]
+                    if 'function' in variableName:
+                        function = value
+                    if 'zones' in variableName:
+                        zones = value.split(',')
+                    if 'set_temp' in variableName:
+                        setTemp = float(value)
+                    if 'hyst_temp' in variableName:
+                        hyst_temp = float(value)
+                    if 'hyst_time' in variableName:
+                        hyst_time = int(value)
+                    if 'mode' in variableName:
+                        mode = value
+                line += 1						#line counting
+            if (x < 4):
+                program_weekday.insert(x,[name,[hours,minutes],mode,function,zones,setTemp,hyst_temp,hyst_time])
+            if (x >= 4):
+                program_weekend.insert(x-4,[name,[hours,minutes],mode,function,zones,setTemp,hyst_temp,hyst_time])
 
 #########################################################
 #
@@ -1148,8 +1145,8 @@ def parse_program(lines):
 #########################################################
 
 def load_program():
-        lines = read_program_raw()
-        parse_program(lines)
+    lines = read_program_raw()
+    parse_program(lines)
 
 #########################################################
 #
@@ -1160,7 +1157,6 @@ def load_program():
 #########################################################
 
 class App():
-
     def __init__(self):
         self.stdin_path = '/dev/null'
         self.stdout_path = '/var/log/skynet/stdout'
@@ -1268,8 +1264,6 @@ class App():
 #########################################################
 #CALL INIT
 app = App()
-
-
 #START UP LOGGER
 logger = logging.getLogger("Skynet.d")
 logger.setLevel(logging.INFO)
