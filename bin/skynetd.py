@@ -63,6 +63,7 @@ global hyst_time
 global logger
 global formatter
 global handler
+global HEAT_runtimes
 
 #########################################################
 #
@@ -87,8 +88,10 @@ device_file = ["",""]
 
 HVAC_status = [0,0,0,0,0]
 
-HEAT_times = []   #last off   #last on
+HEAT_times = [startTime,startTime]   #0 last off   #1 last on
+HEAT_runtimes = [0,0]   #0 last off duration    #1 last on duration
 COOL_times = []
+
 
 lastUploads = [
         time.time(),     #[0] main_streamer
@@ -106,15 +109,15 @@ community = 'public'
 port = 161
 
 tempHosts = [
-                ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.3','         Outdoor',-999.9,"__OUTS1__"],
-                ['192.168.1.228','.1.3.6.1.4.1.21796.3.3.3.1.6.1','  Master Bedroom',-999.9,"__BEDRM__"],
-                ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.1','   Upstairs Hall',-999.9,"__HALL2__"],
-                ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.2','           Craft',-999.9,"__CRAFT__"],
-                ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.1','       Stairwell',-999.9,"__STAIR__"],
-                ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.1','     Living Room',-999.9,"__LVGRM__"],
-                ['192.168.1.223','.1.3.6.1.4.1.21796.3.3.3.1.6.1','    UpstairsBath',-999.9,"__BATH2__"],
-                ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.2','        Basement',-999.9,"__BSMNT__"],
-                ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','   Fish Tank 15g',-999.9,"__TNK15__"]
+    ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.3','         Outdoor',-999.9,"__OUTS1__"],
+    ['192.168.1.228','.1.3.6.1.4.1.21796.3.3.3.1.6.1','  Master Bedroom',-999.9,"__BEDRM__"],
+    ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.1','   Upstairs Hall',-999.9,"__HALL2__"],
+    ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.2','           Craft',-999.9,"__CRAFT__"],
+    ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.1','       Stairwell',-999.9,"__STAIR__"],
+    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.1','     Living Room',-999.9,"__LVGRM__"],
+    ['192.168.1.223','.1.3.6.1.4.1.21796.3.3.3.1.6.1','    UpstairsBath',-999.9,"__BATH2__"],
+    ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.2','        Basement',-999.9,"__BSMNT__"],
+    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','   Fish Tank 15g',-999.9,"__TNK15__"]
 ]
 
 humidHosts = [
@@ -183,6 +186,25 @@ def upload_status():
         HVAC_status_sum += ups[statusCounter]
         statusCounter += 1
     HVAC_status_sum = HVAC_status_sum / float(2.0)
+
+    if HEAT_runtimes[0] > 0:
+        heat_off_duration = "%s" % HEAT_runtimes[0]
+    else:
+        heat_off_duration = "[INIT]"
+    if HEAT_runtimes[1] > 0:
+        heat_on_duration = "%s" % HEAT_runtimes[1]
+    else:
+        heat_on_duration = "[INIT]"
+    if HEAT_times[0] != startTime:
+        heat_off_time = "%s" % time.ctime(HEAT_times[0])
+    else:
+        heat_off_time = "[INIT]"
+    if HEAT_times[1] != startTime:
+        heat_on_time = "%s" % time.ctime(HEAT_times[1])
+    else:
+        heat_on_time = "[INIT]"
+
+
     #Send globals to initialstate
     double_streamer("HVAC_SYSTEM",HVAC_status[0])
     double_streamer("HVAC_FAN", HVAC_status[1])
@@ -196,9 +218,13 @@ def upload_status():
     double_streamer("HVAC_AUTO_ADD", ups[4])
     double_streamer("HVAC_STATUS_SUM", HVAC_status_sum)
     double_streamer("HVAC_program",programPeriodName.upper())
-    double_streamer("HVAC_SetPoint","%.2f" % set_temp)
-    double_streamer("HVAC_HystTemp","%.2f" % hyst_temp)
-    double_streamer("HVAC_HystTime","%.2f" % hyst_time)
+    double_streamer("HVAC_SetPoint","%s" % set_temp)
+    double_streamer("HVAC_HystTemp","%.1f" % hyst_temp)
+    double_streamer("HVAC_HystTime","%s" % int(hyst_time))
+    double_streamer("HVAC_heatLastOn",heat_on_time)
+    double_streamer("HVAC_heatLastOnDuration", heat_on_duration)
+    double_streamer("HVAC_heatLastOff",heat_off_time)
+    double_streamer("HVAC_heatLastOffDuration", heat_off_duration)
     zonesString = ""
     for zone in zones:
         zonesString += zone + " "
@@ -208,11 +234,11 @@ def upload_status():
     double_streamer("HVAC_Mode",mode.upper())
     for host in range(SNMP_numHosts):
         if (tempHosts[host][3] < 180) and (tempHosts[host][3] > -180):
-            double_streamer(""+str(tempHosts[host][2]).strip()+"", round(float("%.2f" % tempHosts[host][3]),4))
+            double_streamer(""+str(tempHosts[host][2]).strip()+"", round(float("%.2f" % tempHosts[host][3]),1))
 
     #Spit out statuses to logger
     if ambient < 900:     #make sure not init
-        double_streamer("HVAC_TargetAmbient","%.2f" % ambient)
+        double_streamer("HVAC_TargetAmbient","%.1f" % ambient)
     logger.info(loggerLine())
 
     tempBuffer = ""
@@ -225,6 +251,15 @@ def upload_status():
     logger.info("SYST FAN  HEAT COOL AUTO")
     logger.info(tempBuffer)
     logger.info(loggerLine())
+    logger.info(loggerFormat("Heat Last On") + heat_on_time)
+    logger.info(loggerFormat("Heat Last On Duration") + heat_on_duration)
+    logger.info(loggerFormat("Heat Last Off") + heat_off_time)
+    logger.info(loggerFormat("Heat Last Off Duration") + heat_off_duration)
+    seconds_since_startup = time.time() - startTime
+    time_since_startup = "%.1fsec" % seconds_since_startup
+    time_since_startup += " (%.1fhr)" % (seconds_since_startup / 3600.00)
+    logger.info(loggerFormat("Time Since Startup") + time_since_startup)
+    logger.info(loggerLine())
     logger.info(loggerFormat("Program Period Name") + "%s" % programPeriodName.upper())
     logger.info(loggerFormat("Mode") + "%s" % mode.upper())
     logger.info(loggerFormat("Zones") + "%s" % zones)
@@ -236,7 +271,7 @@ def upload_status():
     logger.info(loggerFormat("Current Ambient") + "%s" % ambient)
     logger.info(loggerLine())
     for host in range(SNMP_numHosts):
-        logger.info(loggerFormat(tempHosts[host][2]) + "%.2f" % tempHosts[host][3] + 'F')
+        logger.info(loggerFormat(tempHosts[host][2]) + "%.1f" % tempHosts[host][3] + 'F')
 
 # ########################################################
 #
@@ -422,34 +457,35 @@ def HVAC_logic(override):
     getParams()
 
     timeNow = getTime()					#get the time for deciding on periodic events
+
+    ############################################################
+    #
+    # LOGIC GROUP: AUTOMATIC MODE
+    #
+    ############################################################
+
     ############################################################
     #
     # LOGIC GROUP: FAN CYCLE 5 mins of every hour
     #
     ############################################################
 
-    if datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07","08","09"]:
+    if (datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07","08","09"] and (time.time()-startTime) > 120) :   ###added to smooth out fan behavior while developing
         HVAC_FAN_on()
     elif HVAC_isAuto() == True:
         HVAC_FAN_off()
 
-        ############################################################
-        #
-        # LOGIC GROUP: AUTOMATIC MODE
-        #
-        ############################################################
+    if HVAC_isAuto() or override:
+        logger.debug("Automatic Mode")
+        HVAC_logic_runAuto()
+    ############################################################
+    #
+    # LOGIC GROUP: MANUAL MODE
+    #
+    ############################################################
 
-        if HVAC_isAuto() or override:
-            logger.debug("Automatic Mode")
-            HVAC_logic_runAuto()
-        ############################################################
-        #
-        # LOGIC GROUP: MANUAL MODE
-        #
-        ############################################################
-
-        else:
-            logger.debug("Manual Mode, Doing Nothing Automatically")
+    else:
+        logger.debug("Manual Mode, Doing Nothing Automatically")
 
 ############################################################
 #
@@ -502,7 +538,9 @@ def getAmbient(func,zones):
 def HVAC_logic_runAuto():
     global logger
     if 'heat' in mode:
-        HVAC_COOL_off()                         #Because heat is on, make sure cool stays off
+        HVAC_service_audit(3)                   #Check the cool serice status
+        if HVAC_status[3] == 1:
+            HVAC_COOL_off()                     #Because heat is on, make sure cool stays off
         HVAC_service_audit(2)                   #Check the heat service status
 
         #evaluate the current program's FUNCTION, i.e. how room(s) should be
@@ -513,14 +551,21 @@ def HVAC_logic_runAuto():
         ###########################################################################
         # The actual decision-making
         #
-        if ambient > set_temp + hyst_temp:
+        global HEAT_times
+        global HEAT_runtimes
+        timeNow = time.time()
+        logger.info((timeNow - HEAT_times[0]))
+        if ((timeNow - HEAT_times[0]) > hyst_time) or ((timeNow - startTime) > 60 and (timeNow - startTime) < hyst_time) or (HVAC_status[3] == 1):
+            if ambient > set_temp + hyst_temp:
                 logger.debug(">>>>>HEAT OFF")
-                HVAC_HEAT_off()
-        elif ambient < set_temp - hyst_temp:
+                if HVAC_status[2] == 1:
+                    HVAC_HEAT_off()
+            elif ambient < set_temp - hyst_temp:
                 logger.debug(">>>>>HEAT ON")
-                HVAC_HEAT_on()
-        else:
-                logger.info(">>>>>>COMFORT RANGE")
+                if HVAC_status[2] == 0:
+                    HVAC_HEAT_on()
+            else:
+                    logger.info(">>>>>>COMFORT RANGE")
 
 ############################################################
 #
@@ -577,6 +622,11 @@ def HVAC_HEAT_on():
     logger.debug("HVAC_HEAT_on()")
     GPIO.output(pinList[2],RELAY_ON)
     HVAC_status[2] = 1
+    global HEAT_times
+    global HEAT_runtimes
+    if time.time()-startTime >= 90:   #guaranteed 90 seconds of "init"
+        HEAT_times[1] = time.time()   #1 index is time-since-ON
+        HEAT_runtimes[0] = round(time.time() - HEAT_times[0],1)
 
 def HVAC_HEAT_off():
     global logger
@@ -584,6 +634,11 @@ def HVAC_HEAT_off():
     logger.debug("HVAC_HEAT_off()")
     GPIO.output(pinList[2],RELAY_OFF)
     HVAC_status[2] = 0
+    global HEAT_times
+    global HEAT_runtimes
+    if time.time()-startTime >= 90:   #guaranteed 90 seconds of "init"
+        HEAT_times[0] = time.time()  #0 index is time-since-OFF
+        HEAT_runtimes[1] = round(time.time() - HEAT_times[1],1)
 
 #########################################################
 #
@@ -780,7 +835,7 @@ def snmp_poller():
             else:
                 #PRIMARY ACTION HERE
                 temperature = (float(varBinds[0][1])/10 * 1.8) + 32  #convert to F from C and store
-                tempHosts[host][3] = temperature
+                tempHosts[host][3] = round(temperature,1)
         hostCount += 1
 
 
@@ -955,8 +1010,8 @@ def poll_1wire_temps():
             #with open("/var/www/html/1wire-2-DUCT.html", "w") as text_file:
             #   text_file.write("[{0}]".format(sensor2))
             #log to initialstate, both buckets
-            double_streamer("ThermostatAmbient","%.2f" % sensor1)
-            double_streamer("ThermostatDUCT","%.2f" % sensor2)
+            double_streamer("ThermostatAmbient","%.1f" % sensor1)
+            double_streamer("ThermostatDUCT","%.1f" % sensor2)
             #log to the info log
             logger.info(loggerLine())
             logger.info(loggerFormat("AMBIENT") + "%s" % sensor1)
@@ -1096,24 +1151,6 @@ def load_program():
         lines = read_program_raw()
         parse_program(lines)
 
-########################################################################################################################
-#
-#  FUNCTION BLOCKS: Pi Hardware Pollers
-#
-########################################################################################################################
-
-
-
-
-########################################################################################################################
-#
-#  FUNCTION BLOCKS: Pi Hardware Pollers
-#
-########################################################################################################################
-
-
-
-
 #########################################################
 #
 # App() Init Constructor
@@ -1181,8 +1218,6 @@ class App():
         HVAC_goAuto()
         HVAC_SYSTEM_on()
 
-        logger.info("Relay Tests OK, System OFF after init")
-        logger.info("*****************************************************************")
         logger.info("INIT: STARTING MAIN LOOP")
 
     	load_program()      		  			#open, read, and parse config file that contains temps and periods
