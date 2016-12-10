@@ -520,8 +520,8 @@ def HVAC_logic(override):
     # LOGIC GROUP: FAN CYCLE 5 mins of every hour
     #
     ############################################################
-
-    if (datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07"] and (time.time()-startTime) > 120) :   ###added to smooth out fan behavior while developing
+    global programPeriodName
+    if ((datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07"] and (time.time()-startTime) > 120)) and not ("OVERRIDE" in programPeriodName and datetime.now().strftime('%M') in ["04","05","06","07","08"]):   ###added to smooth out fan behavior while developing
         HVAC_FAN_on()
     elif HVAC_isAuto() == True:
         HVAC_FAN_off()
