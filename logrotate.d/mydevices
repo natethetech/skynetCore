@@ -1,4 +1,4 @@
-/var/log/mydevices.log {
+/var/log/myDevices.log {
         missingok
         notifempty
         rotate 7

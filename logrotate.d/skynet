@@ -7,6 +7,19 @@
         delaycompress
         sharedscripts
 	postrotate
-		/opt/skynet/restart.sh
+		/opt/skynet/bin/restart.sh
 	endscript
 }
+/var/log/skynet/stderr {
+        missingok
+        notifempty
+        rotate 55
+        weekly
+        compress
+        delaycompress
+        sharedscripts
+        postrotate
+                /opt/skynet/bin/restart.sh
+        endscript
+}
+
