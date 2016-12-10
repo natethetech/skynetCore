@@ -19,6 +19,8 @@ from datetime import datetime
 from datetime import date
 from pysnmp.hlapi import *
 from daemon import runner
+from ISStreamer.Streamer import Streamer                 #InitialState Streamer
+
 
 #########################################################
 #
@@ -26,16 +28,6 @@ from daemon import runner
 #
 #########################################################
 
-from snlogger import *
-from cloudStreamer import *
-from sn1wire import *
-from snhosts import *
-from htmlWriter import *
-from HVAC import *
-from progMan import *
-from piPoller import *
-from snmpPoller import *
-from sntime import *
 
 #########################################################
 #
@@ -108,6 +100,7 @@ port = 161
 tempHosts = [
     ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.3','         Outdoor',-999.9,"__OUTS1__"],
     ['192.168.1.228','.1.3.6.1.4.1.21796.3.3.3.1.6.1','  Master Bedroom',-999.9,"__BEDRM__"],
+    ['192.168.1.229','.1.3.6.1.4.1.21796.3.3.3.1.6.1','Master Bedroom 2',-999.9,"_BEDRMTV_"],
     ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.1','   Upstairs Hall',-999.9,"__HALL2__"],
     ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.2','           Craft',-999.9,"__CRAFT__"],
     ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.1','       Stairwell',-999.9,"__STAIR__"],
@@ -155,6 +148,52 @@ RELAY_OFF = GPIO.HIGH
 #  FUNCTION BLOCKS: LOGGING
 #
 ########################################################################################################################
+
+#########################################################
+#
+#  STREAMERS for InitialState.com
+#
+#########################################################
+
+streamer = Streamer(bucket_name="SKYNET-TEMPS",bucket_key="8WC35WLXAAAY",access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q", buffer_size=30)
+phonestreamer = Streamer(bucket_name="SKYNET-MOBILE",bucket_key="3T5JKNUXJUB9",access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q", buffer_size=30)
+pistreamer = Streamer(bucket_name="SKYNET-PI",bucket_key="J53VN6NNCYEJ",access_key="XgKetehqZ0ZOkLP91gLsddpj3HYUJK6Q", buffer_size=30)
+
+#########################################################
+#
+# main_streamer(
+#
+# write a name & value pair to the primary IS streamer
+#
+#########################################################
+
+def main_streamer(text,value):
+	streamer.log(text,value)
+
+#########################################################
+#
+# pi_streamer(
+#
+# write a name & value pair to the pi IS streamer
+#
+#########################################################
+
+def pi_streamer(text,value):
+        pistreamer.log(text,value)
+
+#########################################################
+#
+# double_streamer(
+#
+# write a name & value pair to all streamers
+#
+#########################################################
+
+def double_streamer(text,value):
+        streamer.log(text,value)
+        phonestreamer.log(text,value)
+        pi_streamer(text,value)
+
 
 #########################################################
 #
@@ -568,7 +607,7 @@ def HVAC_logic_runAuto():
         timeNow = time.time()
         logger.info((timeNow - HEAT_times[0]))
         if ((timeNow - HEAT_times[0]) > hyst_time) or ((timeNow - startTime) > 60 and (timeNow - startTime) < hyst_time) or (HVAC_status[2] == 1):
-            if ambient >= set_temp:
+            if ambient >= set_temp + hyst_temp:
                 logger.debug(">>>>>HEAT OFF")
                 if HVAC_status[2] == 1:
                     HVAC_HEAT_off()
@@ -906,6 +945,52 @@ def getZoneID(zoneName):
 #########################################################
 
 def snmp_poller():
+    temperature = 0.0
+    hostCount = 0
+    logger.info(loggerLine())
+    for host in range(SNMP_numHosts):
+        for (errorIndication,errorStatus,errorIndex,varBinds) in getCmd(SnmpEngine(),
+            CommunityData(community, mpModel=0),              #mpModel=0 enables SNMPv1 (-v1)
+            UdpTransportTarget((tempHosts[host][0], 161)),ContextData(),
+            ObjectType(ObjectIdentity(tempHosts[host][1])),   #Single Target OID
+            lookupMib=False):                                 #Do not resolve OID (-On)
+
+            if errorIndication:
+                logger.error("SNMP ERROR on host %s" % tempHosts[host][2])
+                logger.error(errorIndication)
+                break
+
+            elif errorStatus:
+                logger.error(errorStatus)
+                logger.error('%s at %s' % (errorStatus.prettyPrint(),
+                    errorIndex and varBinds[int(errorIndex) - 1][0] or '?'))
+                break
+            else:
+                #PRIMARY ACTION HERE
+                temperature = (float(varBinds[0][1])/10 * 1.8) + 32  #convert to F from C and store
+                tempHosts[host][3] = round(temperature,1)
+        hostCount += 1
+
+#########################################################
+#
+#  snmp_writer()
+#
+#  Primary SNMP Writer
+#
+#########################################################
+
+def snmp_writer():
+    pass
+
+#########################################################
+#
+#  snmp_heater_poller()
+#
+#  Secondary SNMP Poller
+#
+#########################################################
+
+def snmp_heater_poller():
     temperature = 0.0
     hostCount = 0
     logger.info(loggerLine())
