@@ -1,0 +1,19 @@
+Host hal
+    HostName 192.168.1.250
+    Port 22
+    User pi
+
+Host dc
+    HostName 192.168.1.249
+    Port 22
+    User pi
+
+Host cam1
+    HostName 192.168.1.48
+    Port 22
+    User pi
+
+Host noc
+    HostName 192.168.1.247
+    Port 22
+    User pi
