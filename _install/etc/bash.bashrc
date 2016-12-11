@@ -1,0 +1,5 @@
+alias ll="ls -l"
+alias skynet="cd /opt/skynet/bin"
+alias killit="sudo /opt/skynet/bin/killit.sh"
+alias startit="sudo /opt/skynet/bin/skynetd.py start"
+alias restartit="sudo /opt/skynet/bin/restart.sh"
