@@ -65,6 +65,8 @@ global HEAT_runtimes
 
 ambient = 999
 
+startupBurn = False    #has there been a startup burn yet? if not, hyst_temp is overridden. once true, no longer possible ever
+
 program_weekday = []
 program_weekend = []
 
@@ -208,6 +210,7 @@ def double_streamer(text,value):
 
 def upload_status():
     global ambient
+    global startupBurn
     logger.debug("upload_status()")
     outStatus = ["OFF","ON"]
     ups = [0,0,0,0,0]                                #temporary array for modified upload values
@@ -246,6 +249,9 @@ def upload_status():
         seconds_since_last_heat = round(time.time()-HEAT_times[0],1)
 
     #Send globals to initialstate
+    seconds_since_startup = time.time() - startTime
+    double_streamer("startupBurn", str(startupBurn))
+    double_streamer("secondsSinceStartup",seconds_since_startup)
     double_streamer("HVAC_SYSTEM",HVAC_status[0])
     double_streamer("HVAC_FAN", HVAC_status[1])
     double_streamer("HVAC_HEAT", HVAC_status[2])
@@ -300,7 +306,6 @@ def upload_status():
     time_since_last_heat = "%ssec " % seconds_since_last_heat
     time_since_last_heat += "(%shr)" % round(seconds_since_last_heat / 3600,1)
     logger.info(loggerFormat("Time Since Last Heat") + time_since_last_heat)
-    seconds_since_startup = time.time() - startTime
     time_since_startup = "%.1fsec" % seconds_since_startup
     time_since_startup += " (%.1fhr)" % (seconds_since_startup / 3600.00)
     logger.info(loggerFormat("Time Since Startup") + time_since_startup)
@@ -606,13 +611,15 @@ def HVAC_logic_runAuto():
         global HEAT_runtimes
         timeNow = time.time()
         logger.info((timeNow - HEAT_times[0]))
-        if ((timeNow - HEAT_times[0]) > hyst_time) or ((timeNow - startTime) > 60 and (timeNow - startTime) < hyst_time) or (HVAC_status[2] == 1):
+        if ((timeNow - HEAT_times[0]) > hyst_time) or ((timeNow - startTime) > 60 and (((timeNow - startTime) < hyst_time) and startupBurn == False)) or (HVAC_status[2] == 1):
             if ambient >= set_temp + hyst_temp:
                 logger.debug(">>>>>HEAT OFF")
                 if HVAC_status[2] == 1:
                     HVAC_HEAT_off()
             elif ambient <= set_temp - hyst_temp:
                 logger.debug(">>>>>HEAT ON")
+                global startupBurn
+                startupBurn = True
                 if HVAC_status[2] == 0:
                     HVAC_HEAT_on()
             else:
