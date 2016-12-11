@@ -83,11 +83,10 @@ HEAT_times = [startTime,startTime]   #0 last off   #1 last on
 HEAT_runtimes = [0,0]   #0 last off duration    #1 last on duration
 COOL_times = []
 
-
 lastUploads = [
-    time.time(),     #[0] main_streamer
-    time.time(),     #[1] pi_streamer
-    time.time()      #[2] double_streamer
+    startTime,     #[0] main_streamer
+    startTime,     #[1] pi_streamer
+    startTime      #[2] double_streamer
 ]
 
 #########################################################
@@ -142,7 +141,7 @@ HVACpin_COOL = 3
 HVACpin_AUTO = 4
 
 oneWirePowerPin = 26
-oneWireResetTime = time.time()   #set the "last reset time" to now, approx program start time
+oneWireResetTime = startTime  #set the "last reset time" to now, approx program start time
 
 #VERIFY "logical" VALUES?
 RELAY_ON = GPIO.LOW
@@ -214,7 +213,7 @@ def double_streamer(text,value):
 def upload_status():
     global ambient
     global startupBurn
-    logger.debug("upload_status()")
+    #logger.debug("upload_status()")
     outStatus = ["OFF","ON"]
     ups = [0,0,0,0,0]                                #temporary array for modified upload values
     statusCounter = 0
@@ -228,7 +227,7 @@ def upload_status():
         HVAC_status_sum += ups[statusCounter]
         statusCounter += 1
     HVAC_status_sum = round(HVAC_status_sum / float(2.0),1)
-
+    timeNow=time.time()
     if HEAT_runtimes[0] > 0:
         heat_off_duration = "%s" % HEAT_runtimes[0]
     else:
@@ -249,12 +248,12 @@ def upload_status():
     if HVAC_status[2] == 1:
         seconds_since_last_heat = 0
     else:
-        seconds_since_last_heat = round(time.time()-HEAT_times[0],1)
+        seconds_since_last_heat = round(timeNow-HEAT_times[0],1)
 
     #Send globals to initialstate
-    seconds_since_startup = time.time() - startTime
+    seconds_since_startup = timeNow - startTime
     double_streamer("startupBurn", str(startupBurn))
-    double_streamer("secondsSinceStartup",seconds_since_startup)
+    double_streamer("secondsSinceStartup","%.0f" % seconds_since_startup)
     double_streamer("HVAC_SYSTEM",HVAC_status[0])
     double_streamer("HVAC_FAN", HVAC_status[1])
     double_streamer("HVAC_HEAT", HVAC_status[2])
@@ -278,23 +277,23 @@ def upload_status():
     double_streamer("SecondsSinceLastBurn",seconds_since_last_heat)
     zonesString = ""
     for zone in zones:
-        zonesString += zone + " "
+        zonesString += zone + "+"
     zonesString = zonesString[:len(zonesString)-1]
     double_streamer("HVAC_Zones",zonesString.upper())
     double_streamer("HVAC_Function",function.upper())
     double_streamer("HVAC_Mode",mode.upper())
     for host in range(SNMP_numHumidHosts):
         if (humidHosts[host][3] < 110) and (humidHosts[host][3] > -1):
-            double_streamer(""+str(humidHosts[host][2]).strip()+"", float("%.1f" % humidHosts[host][3]))
+            double_streamer(""+str(humidHosts[host][2]).strip()+"", "%.1f" % humidHosts[host][3])
     for host in range(SNMP_numHosts):
         if (tempHosts[host][3] < 180) and (tempHosts[host][3] > -180):
-            double_streamer(""+str(tempHosts[host][2]).strip()+"", float("%.1f" % tempHosts[host][3]))
+            double_streamer(""+str(tempHosts[host][2]).strip()+"", "%.1f" % tempHosts[host][3])
 
 
     #Spit out statuses to logger
-    if ambient < 900:     #make sure not init
+    if ambient < 200:     #make sure not init
         double_streamer("HVAC_TargetAmbient","%.1f" % ambient)
-    logger.info(loggerLine())
+    #logger.debug(loggerLine())
 
     tempBuffer = ""
     for services in range(len(HVAC_status)):
@@ -306,33 +305,33 @@ def upload_status():
     logger.info("SYST FAN  HEAT COOL AUTO")
     logger.info(tempBuffer)
     logger.info(loggerLine())
-    logger.info(loggerFormat("Heat Last On") + heat_on_time)
-    logger.info(loggerFormat("Heat Last On Duration") + heat_on_duration)
-    logger.info(loggerFormat("Heat Last Off") + heat_off_time)
-    logger.info(loggerFormat("Heat Last Off Duration") + heat_off_duration)
-    time_since_last_heat = "%ssec " % seconds_since_last_heat
-    time_since_last_heat += "(%shr)" % round(seconds_since_last_heat / 3600,1)
-    logger.info(loggerFormat("Time Since Last Heat") + time_since_last_heat)
-    time_since_startup = "%.1fsec" % seconds_since_startup
-    time_since_startup += " (%.1fhr)" % (seconds_since_startup / 3600.00)
-    logger.info(loggerFormat("Time Since Startup") + time_since_startup)
-    logger.info(loggerLine())
-    logger.info(loggerFormat("Program Period Name") + "%s" % programPeriodName.upper())
-    logger.info(loggerFormat("Mode") + "%s" % mode.upper())
-    logger.info(loggerFormat("Zones") + "%s" % zones)
-    logger.info(loggerFormat("Start Hour") + "%s" % startHour)
-    logger.info(loggerFormat("Function") + "%s" % function.upper())
-    logger.info(loggerFormat("Set Temp") + "%s" % set_temp)
-    logger.info(loggerFormat("Hysteresis Temp") + "%s" % hyst_temp)
-    logger.info(loggerFormat("Hysteresis Time") + "%s sec" % hyst_time)
-    logger.info(loggerFormat("Current Ambient") + "%.1f" % ambient)
-    logger.info(loggerLine())
-    for host in range(SNMP_numHosts):
-        logger.info(loggerFormat(tempHosts[host][2]) + "%.1f" % tempHosts[host][3] + 'F')
-    logger.info(loggerLine())
-    for host in range(SNMP_numHumidHosts):
-        logger.info(loggerFormat(humidHosts[host][2]) + "%.1f" % humidHosts[host][3] + '%')
-    logger.info(loggerLine())
+    #logger.debug(loggerFormat("Heat Last On") + heat_on_time)
+    #logger.debug(loggerFormat("Heat Last On Duration") + heat_on_duration)
+    #logger.debug(loggerFormat("Heat Last Off") + heat_off_time)
+    #logger.debug(loggerFormat("Heat Last Off Duration") + heat_off_duration)
+    #time_since_last_heat = "%ssec " % seconds_since_last_heat
+    #time_since_last_heat += "(%shr)" % round(seconds_since_last_heat / 3600,1)
+    #logger.debug(loggerFormat("Time Since Last Heat") + time_since_last_heat)
+    #time_since_startup = "%.1fsec" % seconds_since_startup
+    #time_since_startup += " (%.1fhr)" % (seconds_since_startup / 3600.00)
+    #logger.debug(loggerFormat("Time Since Startup") + time_since_startup)
+    #logger.debug(loggerLine())
+    #logger.debug(loggerFormat("Program Period Name") + "%s" % programPeriodName.upper())
+    #logger.debug(loggerFormat("Mode") + "%s" % mode.upper())
+    #logger.debug(loggerFormat("Zones") + "%s" % zones)
+    #logger.debug(loggerFormat("Start Hour") + "%s" % startHour)
+    #logger.debug(loggerFormat("Function") + "%s" % function.upper())
+    #logger.debug(loggerFormat("Set Temp") + "%s" % set_temp)
+    #logger.debug(loggerFormat("Hysteresis Temp") + "%s" % hyst_temp)
+    #logger.debug(loggerFormat("Hysteresis Time") + "%s sec" % hyst_time)
+    #logger.debug(loggerFormat("Current Ambient") + "%.1f" % ambient)
+    #logger.debug(loggerLine())
+    #for host in range(SNMP_numHosts):
+    #    #logger.debug(loggerFormat(tempHosts[host][2]) + "%.1f" % tempHosts[host][3] + 'F')
+    #logger.debug(loggerLine())
+    #for host in range(SNMP_numHumidHosts):
+    #    #logger.debug(loggerFormat(humidHosts[host][2]) + "%.1f" % humidHosts[host][3] + '%')
+    #logger.debug(loggerLine())
 
 # ########################################################
 #
@@ -408,7 +407,7 @@ def write_runtime( before, after):
 def HVAC_service_audit(which):
     global logger
     global HVAC_status
-    logger.debug("HVAC_service_audit(%s)" % which)
+    #logger.debug("HVAC_service_audit(%s)" % which)
 
     pinstat = GPIO.input(pinList[which])
     if pinstat:
@@ -416,9 +415,9 @@ def HVAC_service_audit(which):
     else:
         pinstatus = 1
     if (HVAC_status[which] != pinstatus) and (which != HVACpin_AUTO):
-            logger.info("*****Pin Change Detected on relay %s" % which)
-            logger.info("*****HVAC_status: %s" % HVAC_status[which])
-            logger.info("*****Pin Status: %s" % pinstatus)
+            #logger.debug("*****Pin Change Detected on relay %s" % which)
+            #logger.debug("*****HVAC_status: %s" % HVAC_status[which])
+            #logger.debug("*****Pin Status: %s" % pinstatus)
             HVAC_status[which] = pinstatus
             if which == 2:                    #if pin status changed, run the appropriate function so timestamps get updated
                 if pinstatus == 1:
@@ -426,7 +425,7 @@ def HVAC_service_audit(which):
                 elif pinstatus == 0:
                     HVAC_HEAT_off()
     elif (HVAC_status[which] != pinstatus) and (which == HVACpin_AUTO):
-        logger.info("**********AUTOMATIC MODE CHANGE DETECTED***************")
+        #logger.debug("**********AUTOMATIC MODE CHANGE DETECTED***************")
         if pinstat:
             #manual switch on
             logger.warn("MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL")
@@ -447,7 +446,7 @@ def HVAC_service_audit(which):
 def HVAC_goAuto():
     global logger
     #test conditions, check relays, then change relays (turn off a/c for heat, etc) in a safe way
-    logger.info("HVAC_goAuto()")
+    #logger.debug("HVAC_goAuto()")
     HVAC_status[4] = 1
     GPIO.output(pinList[4],RELAY_ON)
 
@@ -463,7 +462,7 @@ def HVAC_goAuto():
 def HVAC_goManual():
     global logger
     #test conditions, check relays, then change relays...?
-    logger.info("HVAC_goManual()")
+    #logger.debug("HVAC_goManual()")
     HVAC_status[4] = 0
     GPIO.output(pinList[4],RELAY_OFF)
 
@@ -478,11 +477,9 @@ def HVAC_goManual():
 
 def HVAC_audit():
     global logger
-    logger.debug("HVAC_audit()")
-    relayCounter = 0
-    for x in pinList:
+    #logger.debug("HVAC_audit()")
+    for relayCounter in range(len(pinList)):
         HVAC_service_audit(relayCounter)
-        relayCounter += 1
 
 #########################################################
 #
@@ -494,20 +491,18 @@ def HVAC_audit():
 
 def HVAC_init():
     global logger
-    logger.debug("HVAC_init()")
-    relayCounter = 0
-    for x in pinList:
-        logger.debug("Relay %s" % relayCounter)
-        logger.debug("Pin %s" % x)
+    #logger.debug("HVAC_init()")
+    for relayCounter in range(len(pinList)):
+        #logger.debug("Relay %s" % relayCounter)
+        #logger.debug("Pin %s" % x)
         #Set pin states to OUTPUT
         GPIO.setup(pinList[relayCounter], GPIO.OUT)
-        logger.debug("Mode Set %s" % relayCounter)
+        #logger.debug("Mode Set %s" % relayCounter)
         #Turn off the relay by default
         GPIO.output(pinList[relayCounter],RELAY_OFF)
         #Set the stored state of the relay to off
         HVAC_status[relayCounter] = 0
-        logger.debug("Relay %s Off" % relayCounter)
-        relayCounter = relayCounter + 1
+        #logger.debug("Relay %s Off" % relayCounter)
 
 ############################################################
 #
@@ -519,7 +514,7 @@ def HVAC_init():
 
 def HVAC_logic(override):
     global logger
-    logger.debug("HVAC_logic()")
+    #logger.debug("HVAC_logic()")
     load_program()      		  			#open, read, and parse config file that contains temps and periods
     getParams()
 
@@ -536,14 +531,15 @@ def HVAC_logic(override):
     # LOGIC GROUP: FAN CYCLE 5 mins of every hour
     #
     ############################################################
+    timeNow = time.time()
     global programPeriodName
-    if ((datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07"] and (time.time()-startTime) > 120)) and not ("OVERRIDE" in programPeriodName and datetime.now().strftime('%M') in ["04","05","06","07","08"]):   ###added to smooth out fan behavior while developing
+    if ((datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07"] and (timeNow-startTime) > 120)) and not ("OVERRIDE" in programPeriodName.upper() and datetime.now().strftime('%M') in ["04","05","06","07","08"]):   ###added to smooth out fan behavior while developing
         HVAC_FAN_on()
     elif HVAC_isAuto() == True:
         HVAC_FAN_off()
 
     if HVAC_isAuto() or override:
-        logger.debug("Automatic Mode")
+        #logger.debug("Automatic Mode")
         HVAC_logic_runAuto()
     ############################################################
     #
@@ -552,7 +548,8 @@ def HVAC_logic(override):
     ############################################################
 
     else:
-        logger.debug("Manual Mode, Doing Nothing Automatically")
+        #logger.debug("Manual Mode, Doing Nothing Automatically")
+        pass
 
 ############################################################
 #
@@ -621,20 +618,21 @@ def HVAC_logic_runAuto():
         global HEAT_times
         global HEAT_runtimes
         timeNow = time.time()
-        logger.info((timeNow - HEAT_times[0]))
+        #logger.debug((timeNow - HEAT_times[0]))
         if ((timeNow - HEAT_times[0]) > hyst_time) or ((timeNow - startTime) > 60 and (((timeNow - startTime) < hyst_time) and startupBurn == False)) or (HVAC_status[2] == 1):
             if ambient >= set_temp + hyst_temp:
-                logger.debug(">>>>>HEAT OFF")
+                #logger.debug(">>>>>HEAT OFF")
                 if HVAC_status[2] == 1:
                     HVAC_HEAT_off()
             elif ambient <= set_temp - hyst_temp:
-                logger.debug(">>>>>HEAT ON")
+                #logger.debug(">>>>>HEAT ON")
                 global startupBurn
                 startupBurn = True
                 if HVAC_status[2] == 0:
                     HVAC_HEAT_on()
             else:
-                    logger.info(">>>>>>COMFORT RANGE")
+                pass
+                #logger.debug(">>>>>>COMFORT RANGE")
 
 ############################################################
 #
@@ -644,16 +642,16 @@ def HVAC_logic_runAuto():
 ############################################################
 
 def HVAC_SYSTEM_off():
-    global logger
+    #global logger
     #turn off relay 0
-    logger.debug("HVAC_SYSTEM_off()")
+    #logger.debug("HVAC_SYSTEM_off()")
     GPIO.output(pinList[0],RELAY_OFF)
     HVAC_status[0] = 0
 
 def HVAC_SYSTEM_on():
-    global logger
+    #global logger
     #turn on relay 0
-    logger.debug("HVAC_SYSTEM_on()")
+    #logger.debug("HVAC_SYSTEM_on()")
     GPIO.output(pinList[0],RELAY_ON)
     HVAC_status[0] = 1
 
@@ -665,16 +663,16 @@ def HVAC_SYSTEM_on():
 #########################################################
 
 def HVAC_FAN_on():
-    global logger
+    #global logger
     #turn on relay 1
-    logger.debug("HVAC_FAN_on()")
+    #logger.debug("HVAC_FAN_on()")
     GPIO.output(pinList[1],RELAY_ON)
     HVAC_status[1] = 1
 
 def HVAC_FAN_off():
-    global logger
+    #global logger
     #turn off relay 1
-    logger.debug("HVAC_FAN_off()")
+    #logger.debug("HVAC_FAN_off()")
     GPIO.output(pinList[1],RELAY_OFF)
     HVAC_status[1] = 0
 
@@ -686,7 +684,7 @@ def HVAC_FAN_off():
 #########################################################
 
 def HVAC_HEAT_on():
-    global logger
+    #global logger
     global HEAT_times
     global HEAT_runtimes
     timeNow = time.time()
@@ -694,13 +692,13 @@ def HVAC_HEAT_on():
         HEAT_times[1] = timeNow   #1 index is time-since-ON
         HEAT_runtimes[0] = round(timeNow - HEAT_times[0],1)
         #turn on relay 2
-        logger.debug("HVAC_HEAT_on()")
+        #logger.debug("HVAC_HEAT_on()")
         GPIO.output(pinList[2],RELAY_ON)
         HVAC_status[2] = 1
         write_heat_lastOn()
 
 def HVAC_HEAT_off():
-    global logger
+    #global logger
     global HEAT_times
     global HEAT_runtimes
     timeNow = time.time()
@@ -708,7 +706,7 @@ def HVAC_HEAT_off():
         HEAT_times[0] = timeNow  #0 index is time-since-OFF
         HEAT_runtimes[1] = round(timeNow - HEAT_times[1],1)
         #turn off relay 2
-        logger.debug("HVAC_HEAT_off()")
+        #logger.debug("HVAC_HEAT_off()")
         GPIO.output(pinList[2],RELAY_OFF)
         HVAC_status[2] = 0
         write_heat_lastOff()
@@ -721,16 +719,16 @@ def HVAC_HEAT_off():
 #########################################################
 
 def HVAC_COOL_on():
-    global logger
+    #global logger
     #turn on relay 3
-    logger.debug("HVAC_COOL_on()")
+    #logger.debug("HVAC_COOL_on()")
     GPIO.output(pinList[3],RELAY_ON)
     HVAC_status[3] = 1
 
 def HVAC_COOL_off():
-    global logger
+    #global logger
     #turn off relay 3
-    logger.debug("HVAC_COOL_off()")
+    #logger.debug("HVAC_COOL_off()")
     GPIO.output(pinList[3],RELAY_OFF)
     HVAC_status[3] = 0
 
@@ -741,21 +739,21 @@ def HVAC_COOL_off():
 #########################################################
 
 def HVAC_AUTO_on():
-    global logger
+    #global logger
     #turn on relay 4
-    logger.debug("HVAC_AUTO_on()")
+    #logger.debug("HVAC_AUTO_on()")
     GPIO.output(pinList[4],RELAY_ON)
     HVAC_status[4] = 1
 
 def HVAC_AUTO_off():
-    global logger
+    #global logger
     #turn off relay 4
-    logger.debug("HVAC_AUTO_off()")
+    #logger.debug("HVAC_AUTO_off()")
     GPIO.output(pinList[4],RELAY_OFF)
     HVAC_status[4] = 0
 
 def HVAC_isAuto():
-    global logger
+    #global logger
     HVAC_service_audit(4)      #update manual/auto service
     if HVAC_status[4] == 0:
         return False
@@ -780,9 +778,9 @@ def HVAC_isAuto():
 def write_heat_lastOff():
     global HEAT_times
     global HEAT_runtimes
-    logger.info("write_heat_lastOff()")
-    logger.info("HEAT_times[0]: %s" % HEAT_times[0])
-    logger.info("HEAT_runtimes[1]: %s" % HEAT_runtimes[0])
+    #logger.debug("write_heat_lastOff()")
+    #logger.debug("HEAT_times[0]: %s" % HEAT_times[0])
+    #logger.debug("HEAT_runtimes[1]: %s" % HEAT_runtimes[0])
     try:
         with open("/opt/skynet/states/heat_last_off", "w") as text_file:
             text_file.write(str(HEAT_times[0]) + "\n")
@@ -800,16 +798,16 @@ def write_heat_lastOff():
 def write_heat_lastOn():
     global HEAT_times
     global HEAT_runtimes
-    logger.info("write_heat_lastOn()")
-    logger.info("HEAT_times[1]: %s" % HEAT_times[1])
-    logger.info("HEAT_runtimes[0]: %s" % HEAT_runtimes[1])
-#    try:
-    with open("/opt/skynet/states/heat_last_on", "w") as text_file:
-        text_file.write(str(HEAT_times[1]) + "\n")
-        text_file.write(str(HEAT_runtimes[0]) + "\n")
-        text_file.close()
-#    except:
-#        logger.error("heat_lastOn writer error!")
+    #logger.debug("write_heat_lastOn()")
+    #logger.debug("HEAT_times[1]: %s" % HEAT_times[1])
+    #logger.debug("HEAT_runtimes[0]: %s" % HEAT_runtimes[1])
+    try:
+        with open("/opt/skynet/states/heat_last_on", "w") as text_file:
+            text_file.write(str(HEAT_times[1]) + "\n")
+            text_file.write(str(HEAT_runtimes[0]) + "\n")
+            text_file.close()
+    except:
+        logger.error("heat_lastOn writer error!")
 
 #########################################################
 #
@@ -820,7 +818,7 @@ def write_heat_lastOn():
 def read_heat_lastOff():
     global HEAT_times
     global HEAT_runtimes
-    logger.info("read_heat_lastOff()")
+    #logger.debug("read_heat_lastOff()")
     try:
         with open("/opt/skynet/states/heat_last_off", "r") as text_file:
             HEAT_times[0] = float(text_file.readline().strip())
@@ -838,7 +836,7 @@ def read_heat_lastOff():
 def read_heat_lastOn():
     global HEAT_times
     global HEAT_runtimes
-    logger.info("read_heat_lastOn()")
+    #logger.debug("read_heat_lastOn()")
     try:
         with open("/opt/skynet/states/heat_last_on", "r") as text_file:
             HEAT_times[1] = float(text_file.readline().strip())
@@ -864,7 +862,7 @@ def read_heat_lastOn():
 
 def write_prtg_snmp():
     #write room sensor data to html
-    logger.debug("write_prtg_snmp()")
+    #logger.debug("write_prtg_snmp()")
     with open("/var/www/html/temps.html", "w") as text_file:
         for host in range(SNMP_numHosts):
             text_file.write("[{0}]".format(tempHosts[host][3]))
@@ -884,17 +882,17 @@ def write_prtg_snmp():
 #########################################################
 
 def uptime_poller():
-    logger.debug("uptime_poller()")
+    #logger.debug("uptime_poller()")
     #get pi uptime, print it to console, send it to InitialState
     output = subprocess.check_output(['cat','/proc/uptime'])
     first = output.split(' ')
     uptimeseconds = float(first[0])
     hours = uptimeseconds / 3600
-    logger.info(loggerFormat("Thermostat Board Uptime") + "%.4f" % (hours)  + " hours")
+    #logger.debug(loggerFormat("Thermostat Board Uptime") + "%.4f" % (hours)  + " hours")
     pi_streamer("UPTIME",str("%.4f" % (hours)))
     currentTime = time.time()
     processLifetime = (currentTime - startTime) / 3600
-    logger.info(loggerFormat("Process Lifespan (hours)") + "%.4f" % processLifetime)
+    #logger.debug(loggerFormat("Process Lifespan (hours)") + "%.4f" % processLifetime)
     pi_streamer("Daemon-Uptime", "%.4f" % processLifetime)
 
 #########################################################
@@ -915,8 +913,8 @@ def pi_hardware_poller():
     #assign & convert
     gpu = round((float(third[0]) * 1.8) + 32,1)
     cpu = round((float(second[1]) / 1000 * 1.8) + 32,1)
-    logger.info(loggerFormat("GPU") + "%.1f" % gpu)
-    logger.info(loggerFormat("CPU") + "%.1f" % cpu)
+    #logger.debug(loggerFormat("GPU") + "%.1f" % gpu)
+    #logger.debug(loggerFormat("CPU") + "%.1f" % cpu)
     #write for PRTG
     with open("/var/www/html/pitemps.html", "w") as text_file:
         text_file.write("[{0}]".format(gpu))
@@ -1045,7 +1043,7 @@ def snmp_writer():
 def snmp_heater_poller():
     temperature = 0.0
     hostCount = 0
-    logger.info(loggerLine())
+    #logger.debug(loggerLine())
     for host in range(SNMP_numHosts):
         for (errorIndication,errorStatus,errorIndex,varBinds) in getCmd(SnmpEngine(),
             CommunityData(community, mpModel=0),              #mpModel=0 enables SNMPv1 (-v1)
@@ -1097,12 +1095,12 @@ def getTime():
 
 def isWeekend():
     dow = date.weekday(datetime.now())
-    logger.debug("Day of Week: %s" % dow)
+    #logger.debug("Day of Week: %s" % dow)
     if dow in [5,6]:
-        logger.debug("WEEKEND")
+        #logger.debug("WEEKEND")
         return 1
     else:
-        logger.debug("WEEKDAY")
+        #logger.debug("WEEKDAY")
         return 0
 
 ########################################################################################################################
@@ -1134,7 +1132,7 @@ def oneWirePowerInit():
 def pollOneWirePower():
     currentOneWirePinStatus = GPIO.input(oneWirePowerPin)
     if currentOneWirePinStatus == GPIO.HIGH:
-        logger.info(loggerFormat("1-Wire Power Pin") + "ENABLED/ON")
+        #logger.debug(loggerFormat("1-Wire Power Pin") + "ENABLED/ON")
         double_streamer("1WireReset",0)
     else:
         logger.warn(loggerFormat("1-Wire Power Pin") + "RESET/OFF")
@@ -1151,19 +1149,20 @@ def pollOneWirePower():
 
 def oneWirePowerCycle():
     global oneWireResetTime
+    timeNow = time.time()
     logger.error("oneWirePowerCycle()")
-    logger.error(time.time()-oneWireResetTime)
+    logger.error(timeNow-oneWireResetTime)
     currentOneWirePinStatus = GPIO.input(oneWirePowerPin)
     if currentOneWirePinStatus == GPIO.HIGH:
         #sensor power is enabled, disable it and mark the time
-        oneWireResetTime = time.time()
+        oneWireResetTime = timeNow
         GPIO.output(oneWirePowerPin, GPIO.LOW)
     else:
         #sensor power is already off, check time and re-enable if long enough
         ONE_WIRE_OFF_TIME = 20    #seconds to keep 1-wire sensors off before powering back on
         if time.time() - oneWireResetTime > ONE_WIRE_OFF_TIME:
             GPIO.output(oneWirePowerPin, GPIO.HIGH)
-            oneWireResetTime = time.time()
+            oneWireResetTime = timeNow
 
 #########################################################
 #
@@ -1175,18 +1174,18 @@ def oneWirePowerCycle():
 #########################################################
 
 def read_temp_raw(which):
-    logger.debug("READ_TEMP_RAW: %s" % which)
-    logger.debug(device_file[which])
+    #logger.debug("READ_TEMP_RAW: %s" % which)
+    #logger.debug(device_file[which])
     f = open(device_file[which], 'r')
     lines = f.readlines()
     f.close()
     return lines
 
 def read_temp(which):
-    logger.debug("READ_TEMP: %s" % which)
+    #logger.debug("READ_TEMP: %s" % which)
     lines = read_temp_raw(which)
-    logger.debug(lines[0])
-    logger.debug(lines[1])
+    #logger.debug(lines[0])
+    #logger.debug(lines[1])
     while lines[0].strip()[-3:] != 'YES':
         time.sleep(0.2)
         lines = read_temp_raw(which)
@@ -1206,7 +1205,7 @@ def read_temp(which):
 #########################################################
 
 def poll_1wire_temps():
-    logger.debug("poll_1wire_temps()")
+    #logger.debug("poll_1wire_temps()")
     #Probe 1Wire Serial
     os.system('modprobe w1-gpio')
     os.system('modprobe w1-therm')
@@ -1220,7 +1219,7 @@ def poll_1wire_temps():
         logger.error("1WIRE ERROR: MISSING SENSORS! RUNNING RESET ROUTINE!")
         oneWirePowerCycle()
     else:
-        logger.debug("Located both sensors OK")
+        #logger.debug("Located both sensors OK")
         device_file[0] = device_folder[0] + '/w1_slave'
         device_file[1] = device_folder[1] + '/w1_slave'
         #read one set of records ahead to smooth out the measurements (prevent 185F bug)
@@ -1242,9 +1241,9 @@ def poll_1wire_temps():
             double_streamer("ThermostatAmbient","%.1f" % sensor1)
             double_streamer("ThermostatDUCT","%.1f" % sensor2)
             #log to the info log
-            logger.info(loggerLine())
-            logger.info(loggerFormat("AMBIENT") + "%s" % sensor1)
-            logger.info(loggerFormat("DUCT") + "%s" % sensor2)
+            #logger.debug(loggerLine())
+            #logger.debug(loggerFormat("AMBIENT") + "%s" % sensor1)
+            #logger.debug(loggerFormat("DUCT") + "%s" % sensor2)
 
 ########################################################################################################################
 #
@@ -1265,7 +1264,7 @@ def poll_1wire_temps():
 def getParams():
     #get the current time as a pair of discrete integers
     rightNow = getTime()
-    logger.debug("Current Time: %s" % rightNow)
+    #logger.debug("Current Time: %s" % rightNow)
     nowH = int(rightNow[0])
     nowM = int(rightNow[1])
 
@@ -1332,7 +1331,7 @@ def parse_program(lines):
     hyst_time = 0
     if "WEEKDAY" in lines[0]:    			  		#FORMAT TEST: FIRST LINE MUST BE WEEKDAY
         line = 0
-        for x in range(8):          		  		#four period setttings for each [weekday|weekend]
+        for x in range(8):          		  		#four period setttings for each [weekdayweekend]
             thisblock=line				 		#line counting
             for ticker in range(10):					#eight elements of data plus one blank per block
                 one_var = lines[thisblock+ticker].split('=')
@@ -1404,20 +1403,20 @@ class App():
     #########################################################
 
     def run(self):
-        logger.info(loggerLine())
-        logger.info("STARTUP INIT")
-        logger.info("")
-        logger.info("Initializing Heat On/Off Times")
+        #logger.debug(loggerLine())
+        #logger.debug("STARTUP INIT")
+        #logger.debug("")
+        #logger.debug("Initializing Heat On/Off Times")
         read_heat_lastOff()
         read_heat_lastOn()
-        logger.info(loggerLine())
-        logger.info("Initializing HVAC_init()")
+        #logger.debug(loggerLine())
+        #logger.debug("Initializing HVAC_init()")
         HVAC_init()
-        logger.info(loggerLine())
-        logger.info("Initializing 1-Wire Interface()")
+        #logger.debug(loggerLine())
+        #logger.debug("Initializing 1-Wire Interface()")
         oneWirePowerInit()
-        logger.info(loggerLine())
-        logger.info("INIT: CYCLING RELAYS")
+        #logger.debug(loggerLine())
+        #logger.debug("INIT: CYCLING RELAYS")
         #turn all the relays off first
         HVAC_SYSTEM_off()
         HVAC_FAN_off()
@@ -1450,8 +1449,8 @@ class App():
         HVAC_goAuto()
         HVAC_SYSTEM_on()  ###DEVELOPMENT LEAVE SYSTEM OFF
 
-        logger.info(loggerLine())
-        logger.info("INIT: STARTING MAIN LOOP")
+        #logger.debug(loggerLine())
+        #logger.debug("INIT: STARTING MAIN LOOP")
 
     	load_program()      		  			#open, read, and parse config file that contains temps and periods
     	getParams()
@@ -1511,5 +1510,5 @@ daemon_runner = runner.DaemonRunner(app)
 #PRESERVE: This ensures that the logger file handle does not get closed during daemonization
 daemon_runner.daemon_context.files_preserve=[handler.stream]
 #FORK the daemon and close the parent (and thus any link to the terminal, allowing the program to run without dying)
-logger.info("STARTED")
+#logger.debug("STARTED")
 daemon_runner.do_action()
