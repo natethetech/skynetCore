@@ -22,3 +22,15 @@ SyntaxError: invalid syntax
     double_streamer("secondsSinceStartup",seconds_since_startup)
                   ^
 SyntaxError: invalid syntax
+/opt/skynet/bin/skynetd.py:622: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn
+/opt/skynet/bin/skynetd.py:622: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn
+/opt/skynet/bin/skynetd.py:627: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn
+/opt/skynet/bin/skynetd.py:632: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn
+/opt/skynet/bin/skynetd.py:632: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn
+/opt/skynet/bin/skynetd.py:632: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn

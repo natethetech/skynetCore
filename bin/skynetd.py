@@ -105,18 +105,21 @@ tempHosts = [
     ['192.168.1.229','.1.3.6.1.4.1.21796.3.3.3.1.6.1','Master Bedroom 2',-999.9,"_BEDRMTV_"],
     ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.1','   Upstairs Hall',-999.9,"__HALL2__"],
     ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.2','           Craft',-999.9,"__CRAFT__"],
-    ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.1','       Stairwell',-999.9,"__STAIR__"],
+    ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.2','       Stairwell',-999.9,"__STAIR__"],
     ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.1','     Living Room',-999.9,"__LVGRM__"],
     ['192.168.1.223','.1.3.6.1.4.1.21796.3.3.3.1.6.1','    UpstairsBath',-999.9,"__BATH2__"],
     ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.2','        Basement',-999.9,"__BSMNT__"],
-    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','   Fish Tank 15g',-999.9,"__TNK15__"]
+    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','   Fish Tank 15g',-999.9,"__TNK15__"],
+    ['192.168.1.222','.1.3.6.1.4.1.21796.4.1.3.1.5.1','LivingRoomIntake',-999.9,"__LVRM2__"]
 ]
 
 humidHosts = [
-    ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.1','Outside Humid']
+    ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.1','  Outside Humid',-999.9],
+    ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.1','Stairwell Humid',-999.9]
 ]
 
 SNMP_numHosts = len(tempHosts)
+SNMP_numHumidHosts = len(humidHosts)
 
 #########################################################
 #
@@ -280,9 +283,13 @@ def upload_status():
     double_streamer("HVAC_Zones",zonesString.upper())
     double_streamer("HVAC_Function",function.upper())
     double_streamer("HVAC_Mode",mode.upper())
+    for host in range(SNMP_numHumidHosts):
+        if (humidHosts[host][3] < 110) and (humidHosts[host][3] > -1):
+            double_streamer(""+str(humidHosts[host][2]).strip()+"", float("%.1f" % humidHosts[host][3]))
     for host in range(SNMP_numHosts):
         if (tempHosts[host][3] < 180) and (tempHosts[host][3] > -180):
-            double_streamer(""+str(tempHosts[host][2]).strip()+"", round(float("%.2f" % tempHosts[host][3]),1))
+            double_streamer(""+str(tempHosts[host][2]).strip()+"", float("%.1f" % tempHosts[host][3]))
+
 
     #Spit out statuses to logger
     if ambient < 900:     #make sure not init
@@ -322,6 +329,10 @@ def upload_status():
     logger.info(loggerLine())
     for host in range(SNMP_numHosts):
         logger.info(loggerFormat(tempHosts[host][2]) + "%.1f" % tempHosts[host][3] + 'F')
+    logger.info(loggerLine())
+    for host in range(SNMP_numHumidHosts):
+        logger.info(loggerFormat(humidHosts[host][2]) + "%.1f" % humidHosts[host][3] + '%')
+    logger.info(loggerLine())
 
 # ########################################################
 #
@@ -679,7 +690,7 @@ def HVAC_HEAT_on():
     global HEAT_times
     global HEAT_runtimes
     timeNow = time.time()
-    if timeNow-startTime >= 90:   #guaranteed 90 seconds of "init"
+    if timeNow-startTime >= 60:   #guaranteed 60 seconds of "init"
         HEAT_times[1] = timeNow   #1 index is time-since-ON
         HEAT_runtimes[0] = round(timeNow - HEAT_times[0],1)
         #turn on relay 2
@@ -693,7 +704,7 @@ def HVAC_HEAT_off():
     global HEAT_times
     global HEAT_runtimes
     timeNow = time.time()
-    if timeNow-startTime >= 90:   #guaranteed 90 seconds of "init"
+    if timeNow-startTime >= 60:   #guaranteed 60 seconds of "init"
         HEAT_times[0] = timeNow  #0 index is time-since-OFF
         HEAT_runtimes[1] = round(timeNow - HEAT_times[1],1)
         #turn off relay 2
@@ -954,7 +965,6 @@ def getZoneID(zoneName):
 def snmp_poller():
     temperature = 0.0
     hostCount = 0
-    logger.info(loggerLine())
     for host in range(SNMP_numHosts):
         for (errorIndication,errorStatus,errorIndex,varBinds) in getCmd(SnmpEngine(),
             CommunityData(community, mpModel=0),              #mpModel=0 enables SNMPv1 (-v1)
@@ -977,6 +987,41 @@ def snmp_poller():
                 temperature = (float(varBinds[0][1])/10 * 1.8) + 32  #convert to F from C and store
                 tempHosts[host][3] = round(temperature,1)
         hostCount += 1
+
+#########################################################
+#
+#  snmp_humid_poller()
+#
+#  Primary SNMP Poller, also handles C to F conversion
+#
+#########################################################
+
+def snmp_humid_poller():
+    temperature = 0.0
+    hostCount = 0
+    for host in range(SNMP_numHumidHosts):
+        for (errorIndication,errorStatus,errorIndex,varBinds) in getCmd(SnmpEngine(),
+            CommunityData(community, mpModel=0),              #mpModel=0 enables SNMPv1 (-v1)
+            UdpTransportTarget((humidHosts[host][0], 161)),ContextData(),
+            ObjectType(ObjectIdentity(humidHosts[host][1])),   #Single Target OID
+            lookupMib=False):                                 #Do not resolve OID (-On)
+
+            if errorIndication:
+                logger.error("SNMP ERROR on host %s" % humidHosts[host][2])
+                logger.error(errorIndication)
+                break
+
+            elif errorStatus:
+                logger.error(errorStatus)
+                logger.error('%s at %s' % (errorStatus.prettyPrint(),
+                    errorIndex and varBinds[int(errorIndex) - 1][0] or '?'))
+                break
+            else:
+                #PRIMARY ACTION HERE
+                humidity = (float(varBinds[0][1]) / 10)
+                humidHosts[host][3] = round(humidity,1)
+        hostCount += 1
+
 
 #########################################################
 #
@@ -1423,13 +1468,16 @@ class App():
                 #POLLING BLOCK
                 pollOneWirePower()
                 snmp_poller()           #Poll HWg Devices via SNMP
+                upload_status()
+
+                snmp_humid_poller()           #Poll HWg Devices via SNMP
+                upload_status()
                 #write_prtg_snmp()       #Write SNMP poll data for PRTG
                 uptime_poller()		#Poll this pi's uptime
                 pi_hardware_poller()    #Poll this pi's CPU/GPU
                 poll_1wire_temps()	#Poll this unit's 1-wire sensors
                 HVAC_audit()
                 HVAC_logic(False)
-                upload_status()
                 HVAC_audit()
 
             except (SystemExit,KeyboardInterrupt):
