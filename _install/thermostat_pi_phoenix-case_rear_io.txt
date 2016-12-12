@@ -1,0 +1,21 @@
+I/O Assignments
+Thermostat Pi Box
+
+Right to Left Looking straight at the I/O side of the box with the screen facing ceiling
+
+
+GROUP A - Furnace I/O
+1 - SYSTEM
+2 - FAN
+3 - HEAT
+4 - COOL
+GROUP B - Furnace Relay Power
+1 - +5VDC Vcc
+2 - Gnd
+3 - NC
+4 - NC
+GROUP C - 1Wire
+1 - Signal
+2 - +3.3VDC Vcc
+3 - Gnd
+4
