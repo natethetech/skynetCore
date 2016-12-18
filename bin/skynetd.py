@@ -77,7 +77,7 @@ program_file = "/opt/skynet/conf/program.conf"
 tempTemps = [0,0,0]
 device_file = ["",""]
 
-HVAC_status = [0,0,0,0,0]
+HVAC_status = [0,0,0,0,0,0]
 
 HEAT_times = [startTime,startTime]   #0 last off   #1 last on
 HEAT_runtimes = [0,0]   #0 last off duration    #1 last on duration
@@ -132,7 +132,8 @@ pinList = [
     6,     #Relay 1: FAN/Blower Control
     13,    #Relay 2: HEAT Control
     19,    #Relay 3: COOL Control
-    21    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
+    21,    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
+    20     #Ghost Relay: HOME (1) AWAY (0)
     ]
 
 
@@ -219,7 +220,7 @@ def upload_status():
     global startupBurn
     #logger.debug("upload_status()")
     outStatus = ["OFF","ON"]
-    ups = [0,0,0,0,0]                                #temporary array for modified upload values
+    ups = [0,0,0,0,0,0]                                #temporary array for modified upload values
     statusCounter = 0
     #Create a sum of all and each of the statuses for graphing separation
     for x in range(len(HVAC_status)):
@@ -611,8 +612,6 @@ def HVAC_logic_runAuto():
             HVAC_COOL_off()                     #Because heat is on, make sure cool stays off
         HVAC_service_audit(2)                   #Check the heat service status
 
-        #evaluate the current program's FUNCTION, i.e. how room(s) should be
-        #combined for a composite ambient temp, which is then used in the final decision on the furnace
         global ambient
         ambient = getAmbient(function,zones)
 
