@@ -131,7 +131,7 @@ pinList = [
     6,     #Relay 1: FAN/Blower Control
     13,    #Relay 2: HEAT Control
     19,    #Relay 3: COOL Control
-    21,    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
+    21    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
     ]
 
 HVACpin_SYSTEM = 0
@@ -139,6 +139,7 @@ HVACpin_FAN = 1
 HVACpin_HEAT = 2
 HVACpin_COOL = 3
 HVACpin_AUTO = 4
+HVACpin_HOME = 5
 
 oneWirePowerPin = 26
 oneWireResetTime = startTime  #set the "last reset time" to now, approx program start time
