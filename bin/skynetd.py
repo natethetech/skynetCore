@@ -126,6 +126,7 @@ SNMP_numHumidHosts = len(humidHosts)
 #
 #########################################################
 
+#MOVE
 pinList = [
     5,     #Relay 0: SYSTEM LOCK/ENABLE
     6,     #Relay 1: FAN/Blower Control
@@ -134,6 +135,8 @@ pinList = [
     21    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
     ]
 
+
+#MOVE
 HVACpin_SYSTEM = 0
 HVACpin_FAN = 1
 HVACpin_HEAT = 2
@@ -144,7 +147,7 @@ HVACpin_HOME = 5
 oneWirePowerPin = 26
 oneWireResetTime = startTime  #set the "last reset time" to now, approx program start time
 
-#VERIFY "logical" VALUES?
+#MOVE
 RELAY_ON = GPIO.LOW
 RELAY_OFF = GPIO.HIGH
 
