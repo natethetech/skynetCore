@@ -1,0 +1,84 @@
+1)	Make a brand new Install of Raspbian and do all upgrade/ update, etc.
+
+2)	Install V4L2 Driver
+
+•	sudo apt-get install v4l-utils
+•	sudo modprobe bcm2835-v4l2
+
+If this works, you should be able to do:
+•	v4l2-ctl -V
+
+Which gets the current video format.
+The modprobe above will only create the device this time around. To make it permanent, you have to edit /etc/modules:
+• sudo vi /etc/modules
+add a line:
+•	bcm2835-v4l2
+
+3) RTSP server: https://github.com/mpromonet/h264_v4l2_rtspserver
+
+Get the code and build it.
+•	sudo git clone https://github.com/mpromonet/h264_v4l2_rtspserver.git
+•	sudo apt-get install liblivemedia-dev libv4l-dev cmake
+•	cd h264_v4l2_rtspserver
+•	sudo cmake . && sudo make
+
+Run your server like this:
+•	sudo /opt/h264_v4l2_rtspserver/h264_v4l2_rtspserver -F 25 -W 1280 -H 720 -P 8555 /dev/video0
+
+Note the parameters to set the width and height and framerate also the port which i've set here to 8555.
+To try it out, run up VLC on another machine and enter the network URL
+
+•	rtsp://ip-address-of-your-rPI:8555/unicast
+
+
+
+4)	Create a RaspberryPi config file on Synology Survillance in order to make PiCam visible during install new cam on SSS
+•	Go to Volume1/@appstore/SurveillanceStation/device_pack/ camera_support
+• Here create a new .conf file with those informations (that you can change as u prefear)
+
+
+[RaspberryPi*PiCam]
+api = rasbpicam-h264
+channel_list = 1
+default_channel = 1
+resolutions_h264 = 1200x720
+default_resolution_h264 = 1200x720
+fps_h264_1200_720 = 25
+default_fps_h264_1200_720 = 25
+default_image_quality = 5
+h264 = rtsp
+rtsp_protocol = udp
+
+•	Now add new cam on Synology .
+
+
+Now, put your attention because RTSP Rasp Server create a listen URL like this
+
+•	rtsp://ip-address-of-your-rPI:8555/unicast
+
+but Synology will use this
+
+•	rtsp://ip-address-of-your-rPI:8555/
+
+If u are thinking to change main.cpp of h264_v4l2_rtspserver on raspberry in order to remove “unicast” string from url …BAD IDEA!! It will stop suddenly with no error log!!! Don't know why!
+
+So now select the camera(s) in the list that show as disconected and choose Export from the Configuration menu. Give it a name and export it. An FYI, you can't export this to a file on your computer.
+You need to have a share on the NAS for the export info to save to. This will create a folder called SSCamExport_CameraNameYouUsed and appears empty.
+Inside are several files however that are hidden. You have to ssh into the NAS and used vi (with root privileges) to make the changes..
+
+To see hidden file in linux use
+
+ls -al
+
+The file you're looking for is: .ExpCam
+
+Open that and edit the two path lines to look like this (or your prefered settings if you know them):
+
+path = ‘unicast’
+live_path = 'unicast'
+
+Save the file then in Surveillance Station use the Import option from the Configuration menu.
+You have to delete the camera before importing it if you have no more licenses available.
+
+
+https://forum.synology.com/enu/viewtopic.php?t=98870
