@@ -72,7 +72,9 @@ program_weekend = []
 
 GPIO.setmode(GPIO.BCM)                                   #set pin numbering to broadcom interface number
 GPIO.setwarnings(False)
-program_file = "/opt/skynet/conf/program.conf"
+program_file_home = "/opt/skynet/conf/program.home.conf"
+program_file_away = "/opt/skynet/conf/program.away.conf"
+
 
 tempTemps = [0,0,0]
 device_file = ["",""]
@@ -280,6 +282,13 @@ def upload_status():
     double_streamer("HVAC_heatLastOff",heat_off_time)
     double_streamer("HVAC_heatLastOffSeconds", heat_off_duration)
     double_streamer("SecondsSinceLastBurn",seconds_since_last_heat)
+    HVAC_service_audit(5)
+    logger.info("STATUS: %s" % HVAC_status[5])
+    if HVAC_status[5] == 1:
+        homeAway = "HOME"
+    else:
+        homeAway = "AWAY"
+    double_streamer("HomeAway",homeAway)
     zonesString = ""
     for zone in zones:
         zonesString += zone + "+"
@@ -306,8 +315,8 @@ def upload_status():
             tempBuffer += "____ "
         else:
             tempBuffer += "XXXX "
-    logger.info(" 00   01   02   03   04")
-    logger.info("SYST FAN  HEAT COOL AUTO")
+    logger.info(" 00   01   02   03   04   05")
+    logger.info("SYST FAN  HEAT COOL AUTO HOME")
     logger.info(tempBuffer)
     logger.info(loggerLine())
     #logger.debug(loggerFormat("Heat Last On") + heat_on_time)
@@ -504,7 +513,8 @@ def HVAC_init():
         GPIO.setup(pinList[relayCounter], GPIO.OUT)
         #logger.debug("Mode Set %s" % relayCounter)
         #Turn off the relay by default
-        GPIO.output(pinList[relayCounter],RELAY_OFF)
+        if relayCounter != 5:
+            GPIO.output(pinList[relayCounter],RELAY_OFF)
         #Set the stored state of the relay to off
         HVAC_status[relayCounter] = 0
         #logger.debug("Relay %s Off" % relayCounter)
@@ -1313,7 +1323,12 @@ def getParams():
 #########################################################
 
 def read_program_raw():
-    f = open(program_file, 'r')
+    HVAC_service_audit(5)
+    if HVAC_status[5] == 1: #HOME
+        progfile = program_file_home
+    else:
+        progfile = program_file_away
+    f = open(progfile, 'r')
     lines = f.readlines()
     f.close()
     return lines
