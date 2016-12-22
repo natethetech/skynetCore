@@ -926,12 +926,12 @@ def pi_hardware_poller():
     #assign & convert
     gpu = round((float(third[0]) * 1.8) + 32,1)
     cpu = round((float(second[1]) / 1000 * 1.8) + 32,1)
-    #logger.debug(loggerFormat("GPU") + "%.1f" % gpu)
-    #logger.debug(loggerFormat("CPU") + "%.1f" % cpu)
-    #write for PRTG
-    with open("/var/www/html/pitemps.html", "w") as text_file:
-        text_file.write("[{0}]".format(gpu))
-        text_file.write("[{0}]".format(cpu))
+    logger.debug(loggerFormat("GPU") + "%.1f" % gpu)
+    logger.debug(loggerFormat("CPU") + "%.1f" % cpu)
+    write for PRTG
+    #with open("/var/www/html/pitemps.html", "w") as text_file:
+    #    text_file.write("[{0}]".format(gpu))
+    #    text_file.write("[{0}]".format(cpu))
     #submit to initialstate
     pi_streamer("Master Pi GPU", str(gpu))
     pi_streamer("Master Pi CPU", str(cpu))
