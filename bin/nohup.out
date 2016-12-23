@@ -40,3 +40,5 @@ SyntaxError: invalid syntax
   global startupBurn
 /opt/skynet/bin/skynetd.py:630: SyntaxWarning: name 'startupBurn' is used prior to global declaration
   global startupBurn
+/opt/skynet/bin/skynetd.py:642: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn
