@@ -17,18 +17,30 @@ add a line:
 3) RTSP server: https://github.com/mpromonet/h264_v4l2_rtspserver
 
 Get the code and build it.
+•	cd /opt/
 •	sudo git clone https://github.com/mpromonet/h264_v4l2_rtspserver.git
 •	sudo apt-get install liblivemedia-dev libv4l-dev cmake
 •	cd h264_v4l2_rtspserver
 •	sudo cmake . && sudo make
 
+****I have had to run the above last command TWICE each time. The first time fails with errors. Running it again promptly thereafter works.
+
 Run your server like this:
 •	sudo /opt/h264_v4l2_rtspserver/h264_v4l2_rtspserver -F 25 -W 1280 -H 720 -P 8555 /dev/video0
+
+***MY COMMAND:
+sudo /opt/h264_v4l2_rtspserver/h264_v4l2_rtspserver -F 25 -W 1280 -H 720 -P 8555 /dev/video0
+
+insert the command minus the sudo (run as root) every minute in the crontab; re-running once already running just exits cleanly bc port in use
+
 
 Note the parameters to set the width and height and framerate also the port which i've set here to 8555.
 To try it out, run up VLC on another machine and enter the network URL
 
-•	rtsp://ip-address-of-your-rPI:8555/unicast
+•	rtsp://ip.address.of.yourPI:8555/unicast
+
+
+The rest of this guide is exclusively for Synology NAS configurations for RTSP + PI servers
 
 
 
@@ -81,4 +93,4 @@ Save the file then in Surveillance Station use the Import option from the Config
 You have to delete the camera before importing it if you have no more licenses available.
 
 
-https://forum.synology.com/enu/viewtopic.php?t=98870
+SOURCE: https://forum.synology.com/enu/viewtopic.php?t=98870
