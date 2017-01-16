@@ -10,7 +10,7 @@ If this works, you should be able to do:
 
 Which gets the current video format.
 The modprobe above will only create the device this time around. To make it permanent, you have to edit /etc/modules:
-• sudo vi /etc/modules
+• sudo nano /etc/modules
 add a line:
 •	bcm2835-v4l2
 
@@ -30,6 +30,9 @@ Run your server like this:
 
 ***MY COMMAND:
 sudo /opt/h264_v4l2_rtspserver/h264_v4l2_rtspserver -F 25 -W 1280 -H 720 -P 8555 /dev/video0
+
+*****UPDATE: MY LATEST COMMAND as CRONTAB entry:
+* * * * * root /opt/h264_v4l2_rtspserver/h264_v4l2_rtspserver -W 1280 -H 720 -p 8555 /dev/video0
 
 insert the command minus the sudo (run as root) every minute in the crontab; re-running once already running just exits cleanly bc port in use
 

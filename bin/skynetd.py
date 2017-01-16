@@ -109,7 +109,7 @@ tempHosts = [
     ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.1','     Living Room',-999.9,"__LVGRM__"],
     ['192.168.1.223','.1.3.6.1.4.1.21796.3.3.3.1.6.1','    UpstairsBath',-999.9,"__BATH2__"],
     ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.2','        Basement',-999.9,"__BSMNT__"],
-    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','   Fish Tank 15g',-999.9,"__TNK15__"],
+    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','   Living Room 3',-999.9,"__LVRM3__"],
     ['192.168.1.222','.1.3.6.1.4.1.21796.4.1.3.1.5.1','LivingRoomIntake',-999.9,"__LVRM2__"]
 ]
 
@@ -219,6 +219,11 @@ def upload_status():
     double_streamer("HVAC_HEAT", HVAC_status[2])
     double_streamer("HVAC_COOL", HVAC_status[3])
     double_streamer("HVAC_AUTO", HVAC_status[4])
+    if HVAC_status[4] == 0:
+        HVAC_AUTO_STR = "MANUAL"
+    else:
+        HVAC_AUTO_STR = "AUTOMATIC"
+    double_streamer("HVAC_AUTO_STR",HVAC_AUTO_STR)
     double_streamer("HVAC_SYSTEM_ADD",ups[0])
     double_streamer("HVAC_FAN_ADD", ups[1])
     double_streamer("HVAC_HEAT_ADD", ups[2])

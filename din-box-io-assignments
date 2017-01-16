@@ -1,0 +1,21 @@
+Thermostat-Pi (DIN RAIL)
+Rear Panel I/O Assignments
+Pin 01 @ nearest to power connector
+Pin 16 @ closest to GPIO & side
+Looking at screen, right-side up, I/O is along "top" of box, pin01->16 L->R
+
+
+01 GPIO 5
+02 GPIO 6
+03 GPIO 13
+04 GPIO 19
+
+05 5VDC out (relays)
+06 GND
+07
+08
+
+09 1Wire Signal
+10 1Wire Power
+11 1Wire Ground
+12
