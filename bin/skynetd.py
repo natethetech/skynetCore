@@ -109,7 +109,7 @@ tempHosts = [
     ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.1','     Living Room',-999.9,"__LVGRM__"],
     ['192.168.1.223','.1.3.6.1.4.1.21796.3.3.3.1.6.1','    UpstairsBath',-999.9,"__BATH2__"],
     ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.2','        Basement',-999.9,"__BSMNT__"],
-    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','   Living Room 3',-999.9,"__LVRM3__"],
+    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','     Front Foyer',-999.9,"__LVRM3__"],
     ['192.168.1.222','.1.3.6.1.4.1.21796.4.1.3.1.5.1','LivingRoomIntake',-999.9,"__LVRM2__"]
 ]
 
@@ -150,8 +150,8 @@ oneWirePowerPin = 26
 oneWireResetTime = startTime  #set the "last reset time" to now, approx program start time
 
 #MOVE
-RELAY_ON = GPIO.LOW
-RELAY_OFF = GPIO.HIGH
+RELAY_ON = GPIO.HIGH
+RELAY_OFF = GPIO.LOW
 
 ########################################################################################################################
 #
@@ -383,9 +383,9 @@ def HVAC_service_audit(which):
 
     pinstat = GPIO.input(pinList[which])
     if pinstat:
-        pinstatus = 0
-    else:
         pinstatus = 1
+    else:
+        pinstatus = 0
     if (HVAC_status[which] != pinstatus) and (which != HVACpin_AUTO):
             #logger.debug("*****Pin Change Detected on relay %s" % which)
             #logger.debug("*****HVAC_status: %s" % HVAC_status[which])
@@ -399,13 +399,12 @@ def HVAC_service_audit(which):
     elif (HVAC_status[which] != pinstatus) and (which == HVACpin_AUTO):
         #logger.debug("**********AUTOMATIC MODE CHANGE DETECTED***************")
         if pinstat:
+            logger.warn("AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO")
+            HVAC_goAuto()
+        else:
             #manual switch on
             logger.warn("MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL MANUAL")
             HVAC_goManual()
-        else:
-            logger.warn("AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO AUTO")
-            HVAC_goAuto()
-
 #########################################################
 #
 # HVAC_goAuto()
@@ -473,9 +472,10 @@ def HVAC_init():
         #Turn off the relay by default
         if relayCounter != 5:
             GPIO.output(pinList[relayCounter],RELAY_OFF)
-        #Set the stored state of the relay to off
+       #Set the stored state of the relay to off
         HVAC_status[relayCounter] = 0
         #logger.debug("Relay %s Off" % relayCounter)
+    GPIO.output(pinList[5],RELAY_ON)   #SET HOME BY DEFAULT
 
 ############################################################
 #
@@ -506,7 +506,7 @@ def HVAC_logic(override):
     ############################################################
     timeNow = time.time()
     global programPeriodName
-    if ((datetime.now().strftime('%M') in ["00","01","02","03","04","05","06","07"] and (timeNow-startTime) > 120)) and not ("OVERRIDE" in programPeriodName.upper() and datetime.now().strftime('%M') in ["04","05","06","07","08"]):   ###added to smooth out fan behavior while developing
+    if ((datetime.now().strftime('%M') in ["00","01","02","03","04"] and (timeNow-startTime) > 120)) and not ("OVERRIDE" in programPeriodName.upper() and datetime.now().strftime('%M') in ["04","05","06","07","08"]):   ###added to smooth out fan behavior while developing
         HVAC_FAN_on()
     elif HVAC_isAuto() == True:
         HVAC_FAN_off()
@@ -865,34 +865,6 @@ def uptime_poller():
     processLifetime = (currentTime - startTime) / 3600
     #logger.debug(loggerFormat("Process Lifespan (hours)") + "%.4f" % processLifetime)
     pi_streamer("Daemon-Uptime", "%.4f" % processLifetime)
-
-#########################################################
-#
-#  pi_hardware_poller()
-#
-#  get and post the pi's CPU and GPU tempeatures
-#
-#########################################################
-
-def pi_hardware_poller():
-    #get pi gpu/cpu temps, then convert them to degrees F
-    output = subprocess.check_output(['/opt/skynet/bin/piTemp.sh'])
-    #parse
-    first = output.split('=')
-    second = str(first[1]).split()
-    third = str(second[0]).split('\'')
-    #assign & convert
-    gpu = round((float(third[0]) * 1.8) + 32,1)
-    cpu = round((float(second[1]) / 1000 * 1.8) + 32,1)
-    #logger.debug(loggerFormat("GPU") + "%.1f" % gpu)
-    #logger.debug(loggerFormat("CPU") + "%.1f" % cpu)
-    #write for PRTG
-    #with open("/var/www/html/pitemps.html", "w") as text_file:
-    #    text_file.write("[{0}]".format(gpu))
-    #    text_file.write("[{0}]".format(cpu))
-    #submit to initialstate
-    pi_streamer("Master Pi GPU", str(gpu))
-    pi_streamer("Master Pi CPU", str(cpu))
 
 ########################################################################################################################
 #
@@ -1400,27 +1372,6 @@ class App():
         HVAC_COOL_off()
         HVAC_AUTO_off()
 
-        #system first
-        HVAC_SYSTEM_on()
-        time.sleep(0.3)
-        HVAC_SYSTEM_off()      #Leave system relay off so nothing else can trigger
-
-        #turn all the relays on
-        HVAC_FAN_on()
-        HVAC_HEAT_on()
-        HVAC_COOL_on()
-        HVAC_AUTO_on()
-
-        time.sleep(0.3)
-
-        #turn all the relays off
-        HVAC_FAN_off()
-        HVAC_HEAT_off()
-        HVAC_COOL_off()
-        HVAC_AUTO_off()
-
-        time.sleep(0.3)
-
         #start up
         HVAC_goAuto()
         HVAC_SYSTEM_on()  ###DEVELOPMENT LEAVE SYSTEM OFF
@@ -1449,7 +1400,7 @@ class App():
                 upload_status()
                 #write_prtg_snmp()       #Write SNMP poll data for PRTG
                 uptime_poller()		#Poll this pi's uptime
-                pi_hardware_poller()    #Poll this pi's CPU/GPU
+                #REMOVE THIS FUNC pi_hardware_poller()    #Poll this pi's CPU/GPU
                 poll_1wire_temps()	#Poll this unit's 1-wire sensors
                 HVAC_audit()
                 HVAC_logic(False)
