@@ -7,6 +7,8 @@ import RPi.GPIO as GPIO
 #pigpio control
 import pigpio
 
+import webpage
+
 pi = pigpio.pi()
 if not pi.connected:
 	exit()
@@ -18,12 +20,12 @@ print("\r\n\r\n")
 #GPIO.setmode(GPIO.BCM) #old standard gpio
 
 #CGI-BIN Initialization
-cgitb.enable()    
+cgitb.enable()
 form = cgi.FieldStorage()
 
 subm = form.getvalue("submit")
 clean = 0
-relaySet = ["","","","",""]
+relaySet = ["","","","","",""]
 
 if subm is None:
 	print "Clean Run No Form Data"
@@ -36,42 +38,43 @@ else:
 	relaySet[2] = form.getvalue('relay3')
 	relaySet[3] = form.getvalue('relay4')
 	relaySet[4] = form.getvalue('relay5')
+	relaySet[5] = form.getvalue('relay6')
 	#print relaySet
 
 
 #BODY & SCRIPT
-pinList = [5,6,13,19,21]
+pinList = [5,6,13,19,21,20]
 
 relayCount = 0
-relaysON = ["","","","",""]
-relaysOFF = ["","","","",""]
+relaysON = ["","","","","",""]
+relaysOFF = ["","","","","",""]
 for x in pinList:
 	pi.set_mode(x, pigpio.OUTPUT)
 	if clean != 1:
 		if relaySet[relayCount] == "on":
 			#print "on"
-			pi.write(pinList[relayCount],0)
+			pi.write(pinList[relayCount],1)
 		elif relaySet[relayCount] == "off":
 			#print "off"
-			pi.write(pinList[relayCount],1)
+			pi.write(pinList[relayCount],0)
 		else:
 			print "ERROR"
 			exit()
 
 
 	relayStat = pi.read(x)
-	if relayStat == 0:
+	if relayStat == 1:
 		relaysON[relayCount] = "checked='checked'"
-	elif relayStat == 1:
+	elif relayStat == 0:
 		relaysOFF[relayCount] = "checked='checked'"
 	else:
 		exit()
 	#relays[relayCount] = relayStatus
 	relayCount += 1
 
-
-print("<h1>TEST</h1><br>")
+print("<h1>SkynetController Thermostat WebUI</h1>")
 #HTML OUTPUT
+print("<a href='skynet.py'>Manual Reload</a><br>")
 print("<form id='dc' name='dc' method='post' action='/cgi-bin/skynet.py'>")
 print("  <table width='600' border='1' cellspacing='0' cellpadding='2'>")
 print("    <tr>")
@@ -99,6 +102,10 @@ print("      <td align='center'>HVAC_AUTO - [4]</td>")
 print("      <td align='center'><label><input type='radio' name='relay5' value='off' id='off' {of}/>Off (Manual)</label><label><input type='radio' name='relay5' value='on' id='on' {on}/>On (Automatic)</label></td>".format(of=relaysOFF[4],on=relaysON[4]))
 print("    </tr>")
 print("    <tr>")
+print("      <td align='center'>HVAC_HOME - [5]</td>")
+print("      <td align='center'><label><input type='radio' name='relay6' value='off' id='off' {of}/>Away</label><label><input type='radio' name='relay6' value='on' id='on' {on}/>Home</label></td>".format(of=relaysOFF[5],on=relaysON[5]))
+print("    </tr>")
+print("    <tr>")
 print("      <td align='center'>ALL</td>")
 print("      <td align='center'><label><input type='radio' name='allrelays' value='off' id='off' />Off</label><label><input type='radio' name='allrelays' value='on' id='on' />On</label></td>")
 print("    </tr>")
@@ -108,4 +115,3 @@ print("      <td align='center'><input type='submit' name='submit' id='submit' v
 print("    </tr>")
 print("  </table>")
 print("</form>")
-

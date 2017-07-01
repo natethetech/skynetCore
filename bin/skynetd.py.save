@@ -1,0 +1,194 @@
+#!/usr/bin/python
+#Required Syntax: sudo ./skynetd.py start &
+
+#########################################################
+#
+#  Python and 3rd Party MODULES
+#
+#########################################################
+
+import sys
+import os
+import time
+import re
+import subprocess
+import glob
+import RPi.GPIO as GPIO                                  #traditional gpio
+import logging
+from datetime import datetime
+from datetime import date
+from pysnmp.hlapi import *
+from daemon import runner
+
+#########################################################
+#
+#  SKYNET MODULES
+#
+#########################################################
+
+from streamers import main_streamer,pi_streamer,double_streamer
+
+#########################################################
+#
+#  Record daemon process startup time
+#
+#########################################################
+
+startTime = time.time()
+
+#########################################################
+#
+#  EMPTY GLOBALS INIT
+#
+#########################################################
+
+global programPeriodName
+global startHour
+global startMins
+global mode
+global function
+global zones
+global set_temp
+global hyst_temp
+global hyst_time
+global logger
+global formatter
+global handler
+global HEAT_runtimes
+
+#########################################################
+#
+#  GLOBALS INIT
+#
+#########################################################
+
+ambient = 999
+
+startupBurn = False    #has there been a startup burn yet? if not, hyst_temp is overridden. once true, no longer possible ever
+
+program_weekday = []
+program_weekend = []
+
+GPIO.setmode(GPIO.BCM)                                   #set pin numbering to broadcom interface number
+GPIO.setwarnings(False)
+program_file_home = "/opt/skynet/conf/program.home.conf"
+program_file_away = "/opt/skynet/conf/program.away.conf"
+
+
+tempTemps = [0,0,0]
+device_file = ["",""]
+
+HVAC_status = [0,0,0,0,0,0]
+
+HEAT_times = [startTime,startTime]   #0 last off   #1 last on
+HEAT_runtimes = [0,0]   #0 last off duration    #1 last on duration
+COOL_times = []
+COOL_runtimes = [0,0]
+
+lastUploads = [
+    startTime,     #[0] main_streamer
+    startTime,     #[1] pi_streamer
+    startTime      #[2] double_streamer
+]
+
+#########################################################
+#
+#  SNMP Globals & Assignments
+#
+#########################################################
+
+community = 'public'
+port = 161
+
+tempHosts = [
+    ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.3','         Outdoor',-999.9,"__OUTS1__"],
+    ['192.168.1.228','.1.3.6.1.4.1.21796.3.3.3.1.6.1','  Master Bedroom',-999.9,"__BEDRM__"],
+    ['192.168.1.229','.1.3.6.1.4.1.21796.3.3.3.1.6.1','Master Bedroom 2',-999.9,"_BEDRMTV_"],
+    ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.1','   Upstairs Hall',-999.9,"__HALL2__"],
+    ['192.168.1.224','.1.3.6.1.4.1.21796.3.3.3.1.6.2','           Craft',-999.9,"__CRAFT__"],
+    ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.2','       Stairwell',-999.9,"__STAIR__"],
+    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.1','     Living Room',-999.9,"__LVGRM__"],
+    ['192.168.1.223','.1.3.6.1.4.1.21796.3.3.3.1.6.1','    UpstairsBath',-999.9,"__BATH2__"],
+    ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.2','        Basement',-999.9,"__BSMNT__"],
+    ['192.168.1.227','.1.3.6.1.4.1.21796.3.3.3.1.6.2','     Front Foyer',-999.9,"__LVRM3__"],
+    ['192.168.1.222','.1.3.6.1.4.1.21796.4.1.3.1.5.1','LivingRoomIntake',-999.9,"__LVRM2__"]
+]
+
+humidHosts = [
+    ['192.168.1.226','.1.3.6.1.4.1.21796.3.3.3.1.6.1','  Outside Humid',-999.9],
+    ['192.168.1.225','.1.3.6.1.4.1.21796.3.3.3.1.6.1','Stairwell Humid',-999.9]
+]
+
+SNMP_numHosts = len(tempHosts)
+SNMP_numHumidHosts = len(humidHosts)
+
+#########################################################
+#
+#  GPIO Pin Role Assignment and Constants
+#
+#########################################################
+
+#MOVE
+pinList = [
+    5,     #Relay 0: SYSTEM LOCK/ENABLE
+    6,     #Relay 1: FAN/Blower Control
+    13,    #Relay 2: HEAT Control
+    19,    #Relay 3: COOL Control
+    21,    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
+    20     #Ghost Relay: HOME (1) AWAY (0)
+    ]
+
+
+#MOVE
+HVACpin_SYSTEM = 0
+HVACpin_FAN = 1
+HVACpin_HEAT = 2
+HVACpin_COOL = 3
+HVACpin_AUTO = 4
+HVACpin_HOME = 5
+
+oneWirePowerPin = 26
+oneWireResetTime = startTime  #set the "last reset time" to now, approx program start time
+
+#MOVE
+RELAY_ON = GPIO.HIGH
+RELAY_OFF = GPIO.LOW
+
+########################################################################################################################
+#
+#  FUNCTION BLOCKS: LOGGING
+#
+########################################################################################################################
+
+#########################################################
+#
+# upload_status()
+#
+# Send InitialState the current status of each service
+#    0 = off     1 = on
+#
+# FUTURE ADD: MOVE ALL INITIALSTATE WORK TO THIS FUNC
+#
+#########################################################
+
+def upload_status():
+    global ambient
+    global startupBurn
+    logger.debug("upload_status()")
+    outStatus = ["OFF","ON"]
+    ups = [0,0,0,0,0,0]                                #temporary array for modified upload values
+    statusCounter = 0
+    #Create a sum of all and each of the statuses for graphing separation
+    for x in range(len(HVAC_status)):
+        ups[statusCounter] = float(HVAC_status[statusCounter]) + statusCounter + (float(statusCounter) / 10)
+        statusCounter += 1
+    HVAC_status_sum = 0
+    statusCounter = 0
+    for x in range(len(HVAC_status)):
+        HVAC_status_sum += ups[statusCounter]
+        statusCounter += 1
+    HVAC_status_sum = round(HVAC_status_sum / float(2.0),1)
+    timeNow=time.time()
+    if HEAT_runtimes[0] > 0:
+        heat_off_duration = "%s" % HEAT_runtimes[0]
+    else:

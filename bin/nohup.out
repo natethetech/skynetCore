@@ -48,3 +48,73 @@ SyntaxError: invalid syntax
   global startupBurn
 /opt/skynet/bin/skynetd.py:600: SyntaxWarning: name 'startupBurn' is used prior to global declaration
   global startupBurn
+/opt/skynet/bin/skynetd.py:600: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn
+/opt/skynet/bin/skynetd.py:600: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn
+/opt/skynet/bin/skynetd.py:600: SyntaxWarning: name 'startupBurn' is used prior to global declaration
+  global startupBurn
+Connected with result code 0
+sensors/centipede01/temperature 24.87
+Traceback (most recent call last):
+  File "./mqtt-client.py", line 29, in <module>
+    client.loop_forever()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 1378, in loop_forever
+    rc = self.loop(timeout, max_packets)
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 897, in loop
+    rc = self.loop_read(max_packets)
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 1177, in loop_read
+    rc = self._packet_read()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 1766, in _packet_read
+    rc = self._packet_handle()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 2239, in _packet_handle
+    return self._handle_publish()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 2414, in _handle_publish
+    self._handle_on_message(message)
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 2574, in _handle_on_message
+    self.on_message(self, self._userdata, message)
+  File "./mqtt-client.py", line 17, in on_message
+    f.writeln(msg.topic+" "+str(msg.payload))
+AttributeError: 'file' object has no attribute 'writeln'
+Connected with result code 0
+Traceback (most recent call last):
+  File "./mqtt-client.py", line 33, in <module>
+    client.loop_forever()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 1378, in loop_forever
+    rc = self.loop(timeout, max_packets)
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 897, in loop
+    rc = self.loop_read(max_packets)
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 1177, in loop_read
+    rc = self._packet_read()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 1766, in _packet_read
+    rc = self._packet_handle()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 2239, in _packet_handle
+    return self._handle_publish()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 2414, in _handle_publish
+    self._handle_on_message(message)
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 2574, in _handle_on_message
+    self.on_message(self, self._userdata, message)
+  File "./mqtt-client.py", line 20, in on_message
+    f = open("/var/log/skynet/"+date.isoformat()+"-mqtt.log", "a")
+NameError: global name 'date' is not defined
+Connected with result code 0
+Traceback (most recent call last):
+  File "./mqtt-client.py", line 33, in <module>
+    client.loop_forever()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 1378, in loop_forever
+    rc = self.loop(timeout, max_packets)
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 897, in loop
+    rc = self.loop_read(max_packets)
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 1177, in loop_read
+    rc = self._packet_read()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 1766, in _packet_read
+    rc = self._packet_handle()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 2239, in _packet_handle
+    return self._handle_publish()
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 2414, in _handle_publish
+    self._handle_on_message(message)
+  File "/usr/local/lib/python2.7/dist-packages/paho/mqtt/client.py", line 2574, in _handle_on_message
+    self.on_message(self, self._userdata, message)
+  File "./mqtt-client.py", line 20, in on_message
+    f = open("/var/log/skynet/"+date.isoformat()+"-mqtt.log", "a")
+TypeError: descriptor 'isoformat' of 'datetime.date' object needs an argument
