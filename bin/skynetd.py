@@ -55,6 +55,7 @@ global logger
 global formatter
 global handler
 global HEAT_runtimes
+global COOL_runtimes
 
 #########################################################
 #
@@ -74,15 +75,15 @@ GPIO.setwarnings(False)
 program_file_home = "/opt/skynet/conf/program.home.conf"
 program_file_away = "/opt/skynet/conf/program.away.conf"
 
-
 tempTemps = [0,0,0]
 device_file = ["",""]
 
 HVAC_status = [0,0,0,0,0,0]
 
 HEAT_times = [startTime,startTime]   #0 last off   #1 last on
+COOL_times = [startTime,startTime]   #0 last off   #1 last on
 HEAT_runtimes = [0,0]   #0 last off duration    #1 last on duration
-COOL_times = []
+COOL_runtimes = [0,0]   #0 last off duration    #1 last on duration
 
 lastUploads = [
     startTime,     #[0] main_streamer
@@ -136,7 +137,6 @@ pinList = [
     21,    #Ghost Relay: AUTOMATIC Control (1) [inverse is MANUAL (0)]
     20     #Ghost Relay: HOME (1) AWAY (0)
     ]
-
 
 #MOVE
 HVACpin_SYSTEM = 0
@@ -210,6 +210,29 @@ def upload_status():
     else:
         seconds_since_last_heat = round(timeNow-HEAT_times[0],1)
 
+
+    if COOL_runtimes[0] > 0:
+        cool_off_duration = "%s" % COOL_runtimes[0]
+    else:
+        cool_off_duration = "[INIT]"
+    if COOL_runtimes[1] > 0:
+        cool_on_duration = "%s" % COOL_runtimes[1]
+    else:
+        cool_on_duration = "[INIT]"
+    if COOL_times[0] != startTime:
+        cool_off_time = "%s" % time.ctime(COOL_times[0])
+    else:
+        cool_off_time = "[INIT]"
+    if COOL_times[1] != startTime:
+        cool_on_time = "%s" % time.ctime(COOL_times[1])
+    else:
+        cool_on_time = "[INIT]"
+
+    if HVAC_status[3] == 1:
+        seconds_since_last_cool = 0
+    else:
+        seconds_since_last_cool = round(timeNow-COOL_times[0],1)
+
     #Send globals to initialstate
     seconds_since_startup = timeNow - startTime
     double_streamer("startupBurn", str(startupBurn))
@@ -240,6 +263,12 @@ def upload_status():
     double_streamer("HVAC_heatLastOff",heat_off_time)
     double_streamer("HVAC_heatLastOffSeconds", heat_off_duration)
     double_streamer("SecondsSinceLastBurn",seconds_since_last_heat)
+
+    double_streamer("HVAC_coolLastOn",cool_on_time)
+    double_streamer("HVAC_coolLastOnSeconds", cool_on_duration)
+    double_streamer("HVAC_coolLastOff",cool_off_time)
+    double_streamer("HVAC_coolLastOffSeconds", cool_off_duration)
+
     HVAC_service_audit(5)
     logger.info("STATUS: %s" % HVAC_status[5])
     if HVAC_status[5] == 1:
@@ -261,7 +290,6 @@ def upload_status():
         if (tempHosts[host][3] < 180) and (tempHosts[host][3] > -180):
             double_streamer(""+str(tempHosts[host][2]).strip()+"", "%.1f" % tempHosts[host][3])
 
-
     #Spit out statuses to logger
     if ambient < 200:     #make sure not init
         double_streamer("HVAC_TargetAmbient","%.1f" % ambient)
@@ -277,10 +305,16 @@ def upload_status():
     logger.info("SYST FAN  HEAT COOL AUTO HOME")
     logger.info(tempBuffer)
     logger.info(loggerLine())
+
     logger.debug(loggerFormat("Heat Last On") + heat_on_time)
     logger.debug(loggerFormat("Heat Last On Duration") + heat_on_duration)
     logger.debug(loggerFormat("Heat Last Off") + heat_off_time)
     logger.debug(loggerFormat("Heat Last Off Duration") + heat_off_duration)
+    logger.debug(loggerFormat("Cool Last On") + cool_on_time)
+    logger.debug(loggerFormat("Cool Last On Duration") + cool_on_duration)
+    logger.debug(loggerFormat("Cool Last Off") + cool_off_time)
+    logger.debug(loggerFormat("Cool Last Off Duration") + cool_off_duration)
+
     time_since_last_heat = "%ssec " % seconds_since_last_heat
     time_since_last_heat += "(%shr)" % round(seconds_since_last_heat / 3600,1)
     logger.debug(loggerFormat("Time Since Last Heat") + time_since_last_heat)
@@ -391,7 +425,12 @@ def HVAC_service_audit(which):
             logger.debug("*****HVAC_status: %s" % HVAC_status[which])
             logger.debug("*****Pin Status: %s" % pinstatus)
             HVAC_status[which] = pinstatus
-            if which == 2:                    #if pin status changed, run the appropriate function so timestamps get updated
+            if which == 3:
+		if pinstatus == 1:
+			HVAC_COOL_on()
+		elif pinstatus == 0:
+			HVAC_COOL_off()
+	    if which == 2:                    #if pin status changed, run the appropriate function so timestamps get updated
                 if pinstatus == 1:
                     HVAC_HEAT_on()
                 elif pinstatus == 0:
@@ -605,6 +644,36 @@ def HVAC_logic_runAuto():
                 pass
                 logger.debug(">>>>>>COMFORT RANGE")
 
+    if 'cool' in mode:
+        HVAC_service_audit(2)                   #Check the heat service status
+        if HVAC_status[2] == 1:
+            HVAC_HEAT_off()                     #Because cool is on, make sure heat stays off
+        HVAC_service_audit(3)                   #Check the cool service status
+
+        global ambient
+        ambient = getAmbient(function,zones)
+
+        ###########################################################################
+        # The actual decision-making
+        #
+        global COOL_times
+        global COOL_runtimes
+        timeNow = time.time()
+        logger.debug("COOL TIME DIFF: %s" % (timeNow - COOL_times[0]))
+        if ((timeNow - COOL_times[0]) > hyst_time) or ((timeNow - startTime) > 60):
+            if ambient <= set_temp - hyst_temp:
+                logger.debug(">>>>>COOL OFF")
+                if HVAC_status[3] == 1:
+                    HVAC_COOL_off()
+            elif ambient >= set_temp + hyst_temp:
+                logger.debug(">>>>>COOL ON")
+                if HVAC_status[3] == 0:
+                    HVAC_COOL_on()
+            else:
+                pass
+                logger.debug(">>>>>>COMFORT RANGE")
+
+
 ############################################################
 #
 #  HVAC_SYSTEM_[off|on]
@@ -691,17 +760,32 @@ def HVAC_HEAT_off():
 
 def HVAC_COOL_on():
     #global logger
-    #turn on relay 3
-    logger.debug("HVAC_COOL_on()")
-    GPIO.output(pinList[3],RELAY_ON)
-    HVAC_status[3] = 1
+    global COOL_times
+    global COOL_runtimes
+    timeNow = time.time()
+    if timeNow-startTime >= 60:   #guaranteed 60 seconds of "init"
+        COOL_times[1] = timeNow   #1 index is time-since-ON
+        COOL_runtimes[0] = round(timeNow - COOL_times[0],1)
+        #turn on relay 3
+        logger.debug("HVAC_COOL_on()")
+        GPIO.output(pinList[3],RELAY_ON)
+        HVAC_status[3] = 1
+        write_cool_lastOn()
 
 def HVAC_COOL_off():
     #global logger
-    #turn off relay 3
-    logger.debug("HVAC_COOL_off()")
-    GPIO.output(pinList[3],RELAY_OFF)
-    HVAC_status[3] = 0
+    global COOL_times
+    global COOL_runtimes
+    timeNow = time.time()
+    if timeNow-startTime >= 60:   #guaranteed 60 seconds of "init"
+        COOL_times[0] = timeNow  #0 index is time-since-OFF
+        COOL_runtimes[1] = round(timeNow - COOL_times[1],1)
+        #turn off relay 3
+        logger.debug("HVAC_COOL_off()")
+        GPIO.output(pinList[3],RELAY_OFF)
+        HVAC_status[3] = 0
+        write_cool_lastOff()
+
 
 #########################################################
 #
@@ -762,6 +846,26 @@ def write_heat_lastOff():
 
 #########################################################
 #
+# write_cool_lastOff(epoch_secs)
+#
+#########################################################
+
+def write_cool_lastOff():
+    global COOL_times
+    global COOL_runtimes
+    logger.debug("write_cool_lastOff()")
+    logger.debug("COOL_times[0]: %s" % COOL_times[0])
+    logger.debug("COOL_runtimes[1]: %s" % COOL_runtimes[0])
+    try:
+        with open("/opt/skynet/states/cool_last_off", "w") as text_file:
+            text_file.write(str(COOL_times[0]) + "\n")
+            text_file.write(str(COOL_runtimes[1]) + "\n")
+            text_file.close()
+    except:
+        logger.error("cool_lastOff writer error!")
+
+#########################################################
+#
 # write_heat_lastOn(epoch_secs)
 #
 #########################################################
@@ -779,6 +883,27 @@ def write_heat_lastOn():
             text_file.close()
     except:
         logger.error("heat_lastOn writer error!")
+
+#########################################################
+#
+# write_cool_lastOn(epoch_secs)
+#
+#########################################################
+
+def write_cool_lastOn():
+    global COOL_times
+    global COOL_runtimes
+    logger.debug("write_cool_lastOn()")
+    logger.debug("COOL_times[1]: %s" % COOL_times[1])
+    logger.debug("COOL_runtimes[0]: %s" % COOL_runtimes[1])
+    try:
+        with open("/opt/skynet/states/cool_last_on", "w") as text_file:
+            text_file.write(str(COOL_times[1]) + "\n")
+            text_file.write(str(COOL_runtimes[0]) + "\n")
+            text_file.close()
+    except:
+        logger.error("cool_lastOn writer error!")
+
 
 #########################################################
 #
@@ -815,6 +940,43 @@ def read_heat_lastOn():
             text_file.close()
     except:
         logger.error("heat_lastOn reader error!")
+
+#########################################################
+#
+# read_cool_lastOff()
+#
+#########################################################
+
+def read_cool_lastOff():
+    global COOL_times
+    global COOL_runtimes
+    logger.debug("read_cool_lastOff()")
+    try:
+        with open("/opt/skynet/states/cool_last_off", "r") as text_file:
+            COOL_times[0] = float(text_file.readline().strip())
+            COOL_runtimes[1] = float(text_file.readline().strip())
+            text_file.close()
+    except:
+        logger.error("cool_lastOff reader error!")
+
+#########################################################
+#
+# read_cool_lastOn()
+#
+#########################################################
+
+def read_cool_lastOn():
+    global COOL_times
+    global COOL_runtimes
+    logger.debug("read_cool_lastOn()")
+    try:
+        with open("/opt/skynet/states/cool_last_on", "r") as text_file:
+            COOL_times[1] = float(text_file.readline().strip())
+            COOL_runtimes[0] = float(text_file.readline().strip())
+            text_file.close()
+    except:
+        logger.error("cool_lastOn reader error!")
+
 
 
 ########################################################################################################################
@@ -1363,7 +1525,9 @@ class App():
         logger.debug("Initializing Heat On/Off Times")
         read_heat_lastOff()
         read_heat_lastOn()
-        logger.debug(loggerLine())
+        read_cool_lastOff()
+        read_cool_lastOn()
+	logger.debug(loggerLine())
         logger.debug("Initializing HVAC_init()")
         HVAC_init()
         logger.debug(loggerLine())
